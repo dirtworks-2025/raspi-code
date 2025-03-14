@@ -5,6 +5,7 @@ from fastapi.requests import Request
 from fastapi.responses import StreamingResponse
 import json
 import cv2
+import driptape_regression
 
 app = FastAPI()
 
@@ -23,18 +24,23 @@ captures = {
     "rear": cv2.VideoCapture(2),
 }
 
-def generate_frames(cap: cv2.VideoCapture):
-    while True:
+def generate_frames(cap: cv2.VideoCapture, fps: int = 10):
+    frame_interval = int(1000 / fps)  # Convert seconds to milliseconds for waitKey()
+
+    while cap.isOpened():
         success, frame = cap.read()
         if not success:
             break
 
-        frame = cv2.resize(frame, (360, 240))
-        frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+        frame = driptape_regression.annotate_frame(frame)
 
         _, buffer = cv2.imencode(".jpg", frame)  # Encode frame as JPEG
         yield (b"--frame\r\n"
                b"Content-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n")
+
+        cv2.waitKey(frame_interval)  # Ensures frame delay
+
+
 
 @app.get("/video/{cam_id}")
 def video_feed(cam_id: str):
