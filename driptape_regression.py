@@ -131,13 +131,13 @@ def get_best_fit_line(pixels):
     Computes the best fit line for a given set of pixels.
     """
 
-    # Fit a line to the pixels (y = mx + b)
+    # Fit a line to the pixels (x = my + b)
     y, x = zip(*pixels)
-    m, b = np.polyfit(x, y, 1)
+    m, b = np.polyfit(y, x, 1)
 
     # Calculate the start and end points of the line
-    start = (int(min(x)), int(m * min(x) + b))
-    end = (int(max(x)), int(m * max(x) + b))
+    start = (int(m * min(y) + b), int(min(y)))
+    end = (int(m * max(y) + b), int(max(y)))
 
     return Line(start, end)
 
@@ -245,8 +245,8 @@ def annotate_frame(image, settings: AnnotationSettings):
 
     # Draw arrow representing steering correction
     if left_line_index >= 0 and right_line_index < len(lines):
-        average_line = Line.avg_line(lines[right_line_index].inverted(), lines[left_line_index]).scaled(0.5)
-        cv2.arrowedLine(steering_arrow, average_line.start, average_line.end, (255, 0, 0), 2)
+        average_line = Line.avg_line(lines[right_line_index].inverted(), lines[left_line_index].inverted()).scaled(0.5)
+        cv2.arrowedLine(steering_arrow, (width // 2, height), average_line.end, (255, 0, 0), 2)
 
     # Create a 4x3 grid of images
     first_row = np.hstack([
