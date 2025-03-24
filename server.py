@@ -16,7 +16,7 @@ class AnnotationSettingsState:
         self.settings = newSettings
 
     def __init__(self):
-        self.settings = AnnotationSettings(minSat=0, maxSat=255)
+        self.settings = AnnotationSettings(minH=60, maxH=120, minS=50, maxS=255, minV=0, maxV=255)
 
 currentSettingsState = AnnotationSettingsState()
 

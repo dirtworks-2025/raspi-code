@@ -1,13 +1,19 @@
-const minSat = document.getElementById("minSat")
-const maxSat = document.getElementById("maxSat")
+const minH = document.getElementById("minH")
+const maxH = document.getElementById("maxH")
+const minS = document.getElementById("minS")
+const maxS = document.getElementById("maxS")
+const minV = document.getElementById("minV")
+const maxV = document.getElementById("maxV")
 
 const handleChange = () => {
-    const minSatVal = minSat.value
-    const maxSatVal = maxSat.value
     
     const settingsJson = {
-        minSat: minSatVal,
-        maxSat: maxSatVal,
+        minH: minH.value,
+        maxH: maxH.value,
+        minS: minS.value,
+        maxS: maxS.value,
+        minV: minV.value,
+        maxV: maxV.value
     }
 
     const settingsJsonStr = JSON.stringify(settingsJson)
@@ -22,5 +28,9 @@ const handleChange = () => {
 
 }
 
-minSat.addEventListener("change", handleChange)
-maxSat.addEventListener("change", handleChange)
+minH.addEventListener("change", handleChange)
+maxH.addEventListener("change", handleChange)
+minS.addEventListener("change", handleChange)
+maxS.addEventListener("change", handleChange)
+minV.addEventListener("change", handleChange)
+maxV.addEventListener("change", handleChange)

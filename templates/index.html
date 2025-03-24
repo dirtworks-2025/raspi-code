@@ -10,13 +10,30 @@
 <body>
     <h2>WebCam Streaming from Raspberry Pi</h2>
     <div>
-        <input type="range" min="0" max="255" id="minSat" value="100"/>
-        <label for="minSat">minSat</label>
+        <input type="range" min="0" max="179" id="minH" value="0"/>
+        <label for="minH">Min. Hue</label>
     </div>
     <div>
-        <input type="range" min="0" max="255" id="maxSat" value="200"/>
-        <label for="maxSat">maxSat</label>
+        <input type="range" min="0" max="179" id="maxH" value="179"/>
+        <label for="maxH">Max. Hue</label>
     </div>
+    <div>
+        <input type="range" min="0" max="255" id="minS" value="0"/>
+        <label for="minS">Min. Saturation</label>
+    </div>
+    <div>
+        <input type="range" min="0" max="255" id="maxS" value="255"/>
+        <label for="maxS">Max. Saturation</label>
+    </div>
+    <div>
+        <input type="range" min="0" max="255" id="minV" value="0"/>
+        <label for="minV">Min. Value</label>
+    </div>
+    <div>
+        <input type="range" min="0" max="255" id="maxV" value="255"/>
+        <label for="maxV">Max. Value</label>
+    </div>
+
     <img src="/video/front" width="1440" height="480" id="frontCam"/>
     <img src="/video/rear" width="1440" height="480" id="rearCam"/>
 

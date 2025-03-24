@@ -101,6 +101,31 @@ class Line:
         self.end = end
         self.midpoint = (int((start[0] + end[0]) / 2), int((start[1] + end[1]) / 2))
 
+    def inverted(self):
+        """
+        Returns the inverted line.
+        """
+        return Line(self.end, self.start)
+    
+    def scaled(self, scale_factor: float):
+        """
+        Returns the scaled line, still centered at the same midpoint.
+        """
+        start = (int(self.midpoint[0] - (self.midpoint[0] - self.start[0]) * scale_factor),
+                 int(self.midpoint[1] - (self.midpoint[1] - self.start[1]) * scale_factor))
+        end = (int(self.midpoint[0] - (self.midpoint[0] - self.end[0]) * scale_factor),
+               int(self.midpoint[1] - (self.midpoint[1] - self.end[1]) * scale_factor))
+        return Line(start, end)
+
+    @classmethod
+    def avg_line(cls, line1: 'Line', line2: 'Line'):
+        """
+        Returns the average line between two lines.
+        """
+        start = (int((line1.start[0] + line2.start[0]) / 2), int((line1.start[1] + line2.start[1]) / 2))
+        end = (int((line1.end[0] + line2.end[0]) / 2), int((line1.end[1] + line2.end[1]) / 2))
+        return Line(start, end)
+
 def get_best_fit_line(pixels):
     """
     Computes the best fit line for a given set of pixels.
@@ -121,21 +146,37 @@ close_kernel_size = 3
 distance_threshold = 10
 
 class AnnotationSettings(BaseModel):
-    minSat: int
-    maxSat: int
+    minH: int
+    maxH: int
+    minS: int
+    maxS: int
+    minV: int
+    maxV: int
 
 def annotate_frame(image, settings: AnnotationSettings):
     image = cv2.resize(image, (360, 240))
     height, width = image.shape[:2]
 
-    # Apply saturation filter
+    # Apply HSV filters
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    lower = np.array([0, settings.minSat, 0])
-    upper = np.array([179, settings.maxSat, 255])
+    h_channel, s_channel, v_channel = cv2.split(hsv)
+
+    lower = np.array([settings.minH, 0, 0])
+    upper = np.array([settings.maxH, 255, 255])
+    hue_mask = cv2.inRange(hsv, lower, upper)
+
+    lower = np.array([0, settings.minS, 0])
+    upper = np.array([179, settings.maxS, 255])
     sat_mask = cv2.inRange(hsv, lower, upper)
 
+    lower = np.array([0, 0, settings.minV])
+    upper = np.array([179, 255, settings.maxV])
+    val_mask = cv2.inRange(hsv, lower, upper)
+
+    combined_mask = cv2.bitwise_and(hue_mask, cv2.bitwise_and(sat_mask, val_mask))
+
     # Morphological transformations to reduce noise
-    denoised_mask = sat_mask.copy()
+    denoised_mask = combined_mask.copy()
     
     open_kernel = np.ones((open_kernel_size, open_kernel_size), np.uint8)
     denoised_mask = cv2.morphologyEx(denoised_mask, cv2.MORPH_OPEN, open_kernel)
@@ -169,6 +210,7 @@ def annotate_frame(image, settings: AnnotationSettings):
 
     # Get the best fit line for each archipelago
     mask_with_lines = cv2.cvtColor(mask_copy, cv2.COLOR_GRAY2BGR)
+    steering_arrow = cv2.cvtColor(np.zeros_like(mask_copy), cv2.COLOR_GRAY2BGR)
     image_with_lines = image.copy()
     lines = []
     for pixels in archipelagos:
@@ -201,12 +243,17 @@ def annotate_frame(image, settings: AnnotationSettings):
     cv2.line(mask_with_lines, (width // 2, 0), (width // 2, height), (128, 128, 128), 2)
     cv2.line(image_with_lines, (width // 2, 0), (width // 2, height), (255, 255, 255), 2)
 
-    # Create a 4x2 grid of images
+    # Draw arrow representing steering correction
+    if left_line_index >= 0 and right_line_index < len(lines):
+        average_line = Line.avg_line(lines[right_line_index].inverted(), lines[left_line_index]).scaled(0.5)
+        cv2.arrowedLine(steering_arrow, average_line.start, average_line.end, (255, 0, 0), 2)
+
+    # Create a 4x3 grid of images
     first_row = np.hstack([
         image,
-        cv2.cvtColor(sat_mask, cv2.COLOR_GRAY2BGR),
+        cv2.cvtColor(combined_mask, cv2.COLOR_GRAY2BGR),
         cv2.cvtColor(denoised_mask, cv2.COLOR_GRAY2BGR),
-        island_mask
+        island_mask,
     ])
     second_row = np.hstack([
         coastline_mask,
@@ -214,6 +261,12 @@ def annotate_frame(image, settings: AnnotationSettings):
         mask_with_lines,
         image_with_lines,
     ])
-    combined = np.vstack([first_row, second_row])
+    third_row = np.hstack([
+        cv2.cvtColor(h_channel, cv2.COLOR_GRAY2BGR),
+        cv2.cvtColor(s_channel, cv2.COLOR_GRAY2BGR),
+        cv2.cvtColor(v_channel, cv2.COLOR_GRAY2BGR),
+        steering_arrow,
+    ])
+    combined = np.vstack([first_row, second_row, third_row])
 
     return combined
