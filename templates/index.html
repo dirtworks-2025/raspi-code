@@ -4,13 +4,23 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebCam Streaming</title>
+    <title>WebCam Streaming</title> 
 </head>
 
 <body>
     <h2>WebCam Streaming from Raspberry Pi</h2>
-    <img src="/video/front" width="1440" height="480"/>
-    <img src="/video/rear" width="1440" height="480"/>
+    <div>
+        <input type="range" min="0" max="255" id="minSat" value="100"/>
+        <label for="minSat">minSat</label>
+    </div>
+    <div>
+        <input type="range" min="0" max="255" id="maxSat" value="200"/>
+        <label for="maxSat">maxSat</label>
+    </div>
+    <img src="/video/front" width="1440" height="480" id="frontCam"/>
+    <img src="/video/rear" width="1440" height="480" id="rearCam"/>
+
+    <script type="text/javascript" src="static/index.js"></script>
 </body>
 
 </html>

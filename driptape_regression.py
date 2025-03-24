@@ -1,6 +1,7 @@
 import cv2
 import numpy as np
 from scipy.spatial.distance import cdist
+from pydantic import BaseModel
 
 def nothing(x):
     pass
@@ -119,15 +120,18 @@ open_kernel_size = 4
 close_kernel_size = 3
 distance_threshold = 10
 
-def annotate_frame(image):
+class AnnotationSettings(BaseModel):
+    minSat: int
+    maxSat: int
+
+def annotate_frame(image, settings: AnnotationSettings):
     image = cv2.resize(image, (360, 240))
     height, width = image.shape[:2]
 
     # Apply saturation filter
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-    s_mean = cv2.mean(hsv)[1]
-    lower = np.array([0, 150, 0])
-    upper = np.array([179, 255, 255])
+    lower = np.array([0, settings.minSat, 0])
+    upper = np.array([179, settings.maxSat, 255])
     sat_mask = cv2.inRange(hsv, lower, upper)
 
     # Morphological transformations to reduce noise
