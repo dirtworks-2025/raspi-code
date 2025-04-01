@@ -141,10 +141,6 @@ def get_best_fit_line(pixels):
 
     return Line(start, end)
 
-open_kernel_size = 4
-close_kernel_size = 3
-distance_threshold = 10
-
 class AnnotationSettings(BaseModel):
     minH: int
     maxH: int
@@ -152,6 +148,9 @@ class AnnotationSettings(BaseModel):
     maxS: int
     minV: int
     maxV: int
+    close_kernel_size: int
+    open_kernel_size: int
+    distance_threshold: int
 
 def annotate_frame(image, settings: AnnotationSettings):
     image = cv2.resize(image, (360, 240))
@@ -178,10 +177,10 @@ def annotate_frame(image, settings: AnnotationSettings):
     # Morphological transformations to reduce noise
     denoised_mask = combined_mask.copy()
     
-    open_kernel = np.ones((open_kernel_size, open_kernel_size), np.uint8)
+    open_kernel = np.ones((settings.open_kernel_size, settings.open_kernel_size), np.uint8)
     denoised_mask = cv2.morphologyEx(denoised_mask, cv2.MORPH_OPEN, open_kernel)
 
-    close_kernel = np.ones((close_kernel_size, close_kernel_size), np.uint8)
+    close_kernel = np.ones((settings.close_kernel_size, settings.close_kernel_size), np.uint8)
     denoised_mask = cv2.morphologyEx(denoised_mask, cv2.MORPH_CLOSE, close_kernel)
 
     # Get the pixel islands
@@ -199,7 +198,7 @@ def annotate_frame(image, settings: AnnotationSettings):
     coastline_mask = get_coastline_mask(islands, mask_copy)
 
     # Merge nearby islands into an archipelago
-    archipelagos = merge_nearby_islands(islands, mask_copy, distance_threshold)
+    archipelagos = merge_nearby_islands(islands, mask_copy, settings.distance_threshold)
 
     # Draw archipelagos in random colors
     archipelago_mask = cv2.cvtColor(mask_copy, cv2.COLOR_GRAY2BGR)
@@ -246,25 +245,25 @@ def annotate_frame(image, settings: AnnotationSettings):
     # Draw arrow representing steering correction
     if left_line_index >= 0 and right_line_index < len(lines):
         average_line = Line.avg_line(lines[right_line_index].inverted(), lines[left_line_index].inverted()).scaled(0.5)
-        cv2.arrowedLine(steering_arrow, (width // 2, height), average_line.end, (255, 0, 0), 2)
+        cv2.arrowedLine(steering_arrow, (width // 2, height), average_line.end, (255, 255, 255), 2)
 
     # Create a 4x3 grid of images
     first_row = np.hstack([
         image,
-        cv2.cvtColor(combined_mask, cv2.COLOR_GRAY2BGR),
-        cv2.cvtColor(denoised_mask, cv2.COLOR_GRAY2BGR),
-        island_mask,
-    ])
-    second_row = np.hstack([
-        coastline_mask,
-        archipelago_mask,
-        mask_with_lines,
-        image_with_lines,
-    ])
-    third_row = np.hstack([
         cv2.cvtColor(h_channel, cv2.COLOR_GRAY2BGR),
         cv2.cvtColor(s_channel, cv2.COLOR_GRAY2BGR),
         cv2.cvtColor(v_channel, cv2.COLOR_GRAY2BGR),
+    ])
+    second_row = np.hstack([
+        cv2.cvtColor(combined_mask, cv2.COLOR_GRAY2BGR),
+        cv2.cvtColor(denoised_mask, cv2.COLOR_GRAY2BGR),
+        island_mask,
+        coastline_mask,
+    ])
+    third_row = np.hstack([
+        archipelago_mask,
+        mask_with_lines,
+        image_with_lines,
         steering_arrow,
     ])
     combined = np.vstack([first_row, second_row, third_row])
