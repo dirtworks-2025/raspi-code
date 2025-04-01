@@ -148,9 +148,9 @@ class AnnotationSettings(BaseModel):
     maxS: int
     minV: int
     maxV: int
-    close_kernel_size: int
-    open_kernel_size: int
-    distance_threshold: int
+    closeKernel: int
+    openKernel: int
+    distThreshold: int
 
 def annotate_frame(image, settings: AnnotationSettings):
     image = cv2.resize(image, (360, 240))
@@ -177,10 +177,10 @@ def annotate_frame(image, settings: AnnotationSettings):
     # Morphological transformations to reduce noise
     denoised_mask = combined_mask.copy()
     
-    open_kernel = np.ones((settings.open_kernel_size, settings.open_kernel_size), np.uint8)
+    open_kernel = np.ones((settings.closeKernel, settings.closeKernel), np.uint8)
     denoised_mask = cv2.morphologyEx(denoised_mask, cv2.MORPH_OPEN, open_kernel)
 
-    close_kernel = np.ones((settings.close_kernel_size, settings.close_kernel_size), np.uint8)
+    close_kernel = np.ones((settings.closeKernel, settings.closeKernel), np.uint8)
     denoised_mask = cv2.morphologyEx(denoised_mask, cv2.MORPH_CLOSE, close_kernel)
 
     # Get the pixel islands
@@ -198,7 +198,7 @@ def annotate_frame(image, settings: AnnotationSettings):
     coastline_mask = get_coastline_mask(islands, mask_copy)
 
     # Merge nearby islands into an archipelago
-    archipelagos = merge_nearby_islands(islands, mask_copy, settings.distance_threshold)
+    archipelagos = merge_nearby_islands(islands, mask_copy, settings.distThreshold)
 
     # Draw archipelagos in random colors
     archipelago_mask = cv2.cvtColor(mask_copy, cv2.COLOR_GRAY2BGR)
