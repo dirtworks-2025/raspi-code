@@ -1,61 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
-
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WebCam Streaming</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>WebCam Streaming</title>
 </head>
-
 <body>
-    <h2>WebCam Streaming from Raspberry Pi</h2>
-    <h3>
-        Temperature: <span id="temperature">Loading...</span> °C
-    </h3>
-    <div>
-        <input type="range" min="0" max="179" id="minH" value="0" oninput="minHValue.textContent = this.value" />
-        <label for="minH">Min. Hue: <span id="minHValue">0</span></label>
-    </div>
-    <div>
-        <input type="range" min="0" max="179" id="maxH" value="0" oninput="maxHValue.textContent = this.value" />
-        <label for="maxH">Max. Hue: <span id="maxHValue">0</span></label>
-    </div>
-    <div>
-        <input type="range" min="0" max="255" id="minS" value="0" oninput="minSValue.textContent = this.value" />
-        <label for="minS">Min. Saturation: <span id="minSValue">0</span></label>
-    </div>
-    <div>
-        <input type="range" min="0" max="255" id="maxS" value="0" oninput="maxSValue.textContent = this.value" />
-        <label for="maxS">Max. Saturation: <span id="maxSValue">0</span></label>
-    </div>
-    <div>
-        <input type="range" min="0" max="255" id="minV" value="0" oninput="minVValue.textContent = this.value" />
-        <label for="minV">Min. Value: <span id="minVValue">0</span></label>
-    </div>
-    <div>
-        <input type="range" min="0" max="255" id="maxV" value="0" oninput="maxVValue.textContent = this.value" />
-        <label for="maxV">Max. Value: <span id="maxVValue">0</span></label>
-    </div>
-    <div>
-        <input type="range" min="0" max="8" id="closeKernel" value="0"
-            oninput="closeKernelValue.textContent = this.value" />
-        <label for="closeKernel">Close Kernel Size: <span id="closeKernelValue">0</span></label>
-    </div>
-    <div>
-        <input type="range" min="0" max="8" id="openKernel" value="0"
-            oninput="openKernelValue.textContent = this.value" />
-        <label for="openKernel">Open Kernel Size: <span id="openKernelValue">0</span></label>
-    </div>
-    <div>
-        <input type="range" min="0" max="20" id="distThreshold" value="0"
-            oninput="distThresholdValue.textContent = this.value" />
-        <label for="distThreshold">Distance Threshold: <span id="distThresholdValue">0</span></label>
-    </div>
+  <h2>WebCam Streaming from Raspberry Pi</h2>
+  <h3>Temperature: <span id="temperature">Loading...</span> °C</h3>
 
-    <img src="/video/front" width="1440" height="480" id="frontCam" />
-    <img src="/video/rear" width="1440" height="480" id="rearCam" />
+  <div id="controls"></div>
 
-    <script type="text/javascript" src="static/index.js"></script>
+  <img src="/video/front" width="1440" height="480" id="frontCam" />
+  <img src="/video/rear" width="1440" height="480" id="rearCam" />
+
+  <script type="text/javascript" src="static/index.js"></script>
 </body>
-
 </html>

@@ -1,80 +1,77 @@
-const minH = document.getElementById("minH")
-const maxH = document.getElementById("maxH")
-const minS = document.getElementById("minS")
-const maxS = document.getElementById("maxS")
-const minV = document.getElementById("minV")
-const maxV = document.getElementById("maxV")
-const temperature = document.getElementById("temperature")
-const closeKernel = document.getElementById("closeKernel")
-const openKernel = document.getElementById("openKernel")
-const distThreshold = document.getElementById("distThreshold")
+const temperatureEl = document.getElementById("temperature");
+const controlsContainer = document.getElementById("controls");
 
+const sliders = [
+  { id: "minH", label: "Min. Hue", min: 0, max: 179 },
+  { id: "maxH", label: "Max. Hue", min: 0, max: 179 },
+  { id: "minS", label: "Min. Saturation", min: 0, max: 255 },
+  { id: "maxS", label: "Max. Saturation", min: 0, max: 255 },
+  { id: "minV", label: "Min. Value", min: 0, max: 255 },
+  { id: "maxV", label: "Max. Value", min: 0, max: 255 },
+  { id: "closeKernel", label: "Close Kernel Size", min: 0, max: 8 },
+  { id: "openKernel", label: "Open Kernel Size", min: 0, max: 8 },
+  { id: "distThreshold", label: "Distance Threshold", min: 0, max: 20 },
+];
+
+const elements = {};
+
+// Dynamically generate sliders
+sliders.forEach(({ id, label, min, max }) => {
+  const wrapper = document.createElement("div");
+
+  wrapper.innerHTML = `
+    <input type="range" id="${id}" min="${min}" max="${max}" value="0" data-key="${id}" />
+    <label for="${id}">${label}: <span id="${id}Value">0</span></label>
+  `;
+
+  controlsContainer.appendChild(wrapper);
+  elements[id] = document.getElementById(id);
+});
+
+// Load initial settings and bind listeners
 const loadSettings = () => {
-    console.log("Loading settings...")
-    fetch("/settings")
-        .then(response => response.json())
-        .then(data => {
-            minH.value = data.minH
-            maxH.value = data.maxH
-            minS.value = data.minS
-            maxS.value = data.maxS
-            minV.value = data.minV
-            maxV.value = data.maxV
-            distThreshold.value = data.distThreshold
-            closeKernel.value = data.closeKernel
-            openKernel.value = data.openKernel
-        })
-        .then(() => {
-            minH.addEventListener("change", handleChange)
-            maxH.addEventListener("change", handleChange)
-            minS.addEventListener("change", handleChange)
-            maxS.addEventListener("change", handleChange)
-            minV.addEventListener("change", handleChange)
-            maxV.addEventListener("change", handleChange) 
-            distThreshold.addEventListener("change", handleChange)
-            closeKernel.addEventListener("change", handleChange)
-            openKernel.addEventListener("change", handleChange)
-        })
-}
+  console.log("Loading settings...");
+  fetch("/settings")
+    .then((res) => res.json())
+    .then((data) => {
+      sliders.forEach(({ id }) => {
+        const input = elements[id];
+        const display = document.getElementById(`${id}Value`);
+        input.value = data[id];
+        display.textContent = data[id];
+
+        input.addEventListener("input", () => {
+          display.textContent = input.value;
+        });
+
+        input.addEventListener("change", handleChange);
+      });
+    });
+};
 
 const getTemperature = () => {
-    fetch("/temperature")
-        .then(response => response.json())
-        .then(data => {
-            document.getElementById("temperature").innerText = data.temperature
-        })
-}
-
-window.addEventListener("load", loadSettings)
-window.addEventListener("load", () => {
-    getTemperature()
-    setInterval(() => {
-        getTemperature()
-    }, 2000);
-})
+  fetch("/temperature")
+    .then((res) => res.json())
+    .then((data) => {
+      temperatureEl.innerText = data.temperature;
+    });
+};
 
 const handleChange = () => {
-    
-    const settingsJson = {
-        minH: minH.value,
-        maxH: maxH.value,
-        minS: minS.value,
-        maxS: maxS.value,
-        minV: minV.value,
-        maxV: maxV.value,
-        distThreshold: distThreshold.value,
-        closeKernel: closeKernel.value,
-        openKernel: openKernel.value,
-    }
+  const settingsJson = {};
+  sliders.forEach(({ id }) => {
+    settingsJson[id] = elements[id].value;
+  });
 
-    const settingsJsonStr = JSON.stringify(settingsJson)
+  fetch("/settings", {
+    method: "POST",
+    body: JSON.stringify(settingsJson),
+    headers: { "Content-Type": "application/json" }
+  });
+};
 
-    fetch("/settings", {
-        method: "POST",
-        body: settingsJsonStr,
-        headers: {
-            "Content-Type": "application/json"
-        }
-    })
-
-}
+window.addEventListener("load", () => {
+  loadSettings();
+  getTemperature();
+  setInterval(getTemperature, 2000);
+});
