@@ -21,8 +21,8 @@ const loadSettings = () => {
             minV.value = data.minV
             maxV.value = data.maxV
             distThreshold.value = data.distThreshold
-            closeKernel.checked = data.closeKernel
-            openKernel.checked = data.openKernel
+            closeKernel.value = data.closeKernel
+            openKernel.value = data.openKernel
         })
         .then(() => {
             minH.addEventListener("change", handleChange)
@@ -63,8 +63,8 @@ const handleChange = () => {
         minV: minV.value,
         maxV: maxV.value,
         distThreshold: distThreshold.value,
-        closeKernel: closeKernel.checked,
-        openKernel: openKernel.checked,
+        closeKernel: closeKernel.value,
+        openKernel: openKernel.value,
     }
 
     const settingsJsonStr = JSON.stringify(settingsJson)
