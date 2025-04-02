@@ -16,13 +16,11 @@ class AnnotationSettingsState:
 
     def update(self, newSettings: AnnotationSettings):
         self.settings = newSettings
-        
-        with open(self.path, "w") as f:
-            json.dump(newSettings.dict(), f)
+        self.save()
     
     def save(self):
         with open(self.path, "w") as f:
-            json.dump(self.settings.dict(), f)
+            json.dump(self.settings.dict(), f, indent=4)
 
     def load(self):
         try:
@@ -50,6 +48,29 @@ class Webcam:
             frame = cv2.rotate(frame, cv2.ROTATE_180)
         return frame
 
+    def get_rotated_frame(self):
+        frame = self.get_frame()
+        if frame is not None:
+            return cv2.rotate(frame, cv2.ROTATE_180)
+        return None
+
+class Webcams:
+    def __init__(self):
+        self.front = Webcam(2)
+        self.rear = Webcam(0, rotate=True)
+
+    def get_front_frame(self, swapped: bool = False):
+        if swapped:
+            return self.rear.get_rotated_frame()
+        return self.front.get_frame()
+    
+    def get_rear_frame(self, swapped: bool = False):
+        if swapped:
+            return self.front.get_rotated_frame()
+        return self.rear.get_frame()
+
+webcams = Webcams()
+
 # Mount the "static" folder for serving JS and other static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
@@ -60,19 +81,15 @@ templates = Jinja2Templates(directory="templates")
 def serve_home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
-webcams = {
-    "front": Webcam(2),
-    "rear": Webcam(0, rotate=True),
-}
-
-def generate_frames(webcam: Webcam):
-    fps = 10
+def generate_frames(cam_id: str):
+    fps = 5
     frame_interval = int(1000 / fps)  # Convert seconds to milliseconds for waitKey()
 
-    while webcam.capture.isOpened():
-        frame = webcam.get_frame()
+    while True:
+        maybeSwapped = currentSettingsState.settings.swapCameras
+        frame = webcams.get_front_frame(maybeSwapped) if cam_id == "front" else webcams.get_rear_frame(maybeSwapped)
         if frame is None:
-            break
+            continue
 
         frame = annotate_frame(frame, currentSettingsState.settings)
 
@@ -84,8 +101,7 @@ def generate_frames(webcam: Webcam):
 
 @app.get("/video/{cam_id}")
 def video_feed(cam_id: str):
-    webcam = webcams[cam_id]
-    return StreamingResponse(generate_frames(webcam), media_type="multipart/x-mixed-replace; boundary=frame")
+    return StreamingResponse(generate_frames(cam_id), media_type="multipart/x-mixed-replace; boundary=frame")
 
 @app.get("/settings")
 def get_settings():

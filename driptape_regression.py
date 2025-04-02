@@ -171,6 +171,7 @@ class AnnotationSettings(BaseModel):
     closeKernel: int
     openKernel: int
     distThreshold: int
+    swapCameras: bool
 
 def annotate_frame(image, settings: AnnotationSettings):
     image = cv2.resize(image, (360, 240))
@@ -197,19 +198,21 @@ def annotate_frame(image, settings: AnnotationSettings):
     # Morphological transformations to reduce noise
     denoised_mask = combined_mask.copy()
 
-    # This kernel connects pixels vertically, which is useful for near-vertical line detection
-    dilate_kernel = np.array([
-        [0, 1, 0],
-        [0, 1, 0],
-        [0, 1, 0]
-    ], dtype=np.uint8)
-    denoised_mask = cv2.dilate(denoised_mask, dilate_kernel, iterations=2)
-
     open_kernel = np.ones((settings.closeKernel, settings.closeKernel), np.uint8)
     denoised_mask = cv2.morphologyEx(denoised_mask, cv2.MORPH_OPEN, open_kernel)
 
     close_kernel = np.ones((settings.closeKernel, settings.closeKernel), np.uint8)
     denoised_mask = cv2.morphologyEx(denoised_mask, cv2.MORPH_CLOSE, close_kernel)
+
+    # This kernel connects pixels vertically, which is useful for near-vertical line detection
+    dilate_kernel = np.array([
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+        [0, 0, 1, 0, 0],
+    ], dtype=np.uint8)
+    denoised_mask = cv2.dilate(denoised_mask, dilate_kernel, iterations=3)
 
     # Get the pixel islands
     mask_copy = denoised_mask.copy()
@@ -238,8 +241,8 @@ def annotate_frame(image, settings: AnnotationSettings):
             continue
         if line.length() < 20:  # Filter out lines that are too short
             continue
-        if line.r2 < 0.5:  # Filter out lines with low R^2 value
-            continue # TODO: verify this works
+        # if line.r2 < 0.5:  # Filter out lines with low R^2 value
+        #     continue # TODO: verify this works
         lines.append(line)
 
     # Sort lines by x-coordinate of midpoint
