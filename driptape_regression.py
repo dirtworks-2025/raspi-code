@@ -68,7 +68,7 @@ def merge_nearby_islands(islands, mask, distance_threshold):
 
         contours, _ = cv2.findContours(temp_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         if contours:
-            borders.append(np.vstack(contours[0]))  # Store boundary pixels
+            borders.append(np.vstack(contours[0]))  # Store boundary pixels for each component
 
     # Compute pairwise distances between component borders
     for i in range(num_islands):
@@ -95,11 +95,13 @@ class Line:
     start = None
     end = None
     midpoint = None
+    r2 = None
 
-    def __init__(self, start, end):
+    def __init__(self, start, end, r2=None):
         self.start = start
         self.end = end
         self.midpoint = (int((start[0] + end[0]) / 2), int((start[1] + end[1]) / 2))
+        self.r2 = r2
 
     def inverted(self):
         """
@@ -116,6 +118,20 @@ class Line:
         end = (int(self.midpoint[0] - (self.midpoint[0] - self.end[0]) * scale_factor),
                int(self.midpoint[1] - (self.midpoint[1] - self.end[1]) * scale_factor))
         return Line(start, end)
+    
+    def angle(self):
+        """
+        Returns the angle of the line in degrees.
+        """
+        delta_x = self.end[0] - self.start[0]
+        delta_y = self.end[1] - self.start[1]
+        return np.degrees(np.arctan2(delta_y, delta_x))
+    
+    def length(self):
+        """
+        Returns the length of the line.
+        """
+        return np.sqrt((self.end[0] - self.start[0]) ** 2 + (self.end[1] - self.start[1]) ** 2)
 
     @classmethod
     def avg_line(cls, line1: 'Line', line2: 'Line'):
@@ -133,13 +149,17 @@ def get_best_fit_line(pixels):
 
     # Fit a line to the pixels (x = my + b)
     y, x = zip(*pixels)
-    m, b = np.polyfit(y, x, 1)
+    coeffs, res, _, _, _ = np.polyfit(y, x, 1, full=True)
+    m, b = coeffs
+
+    # Get the R^2 value
+    r2 = 1 - (res / np.sum((x - np.mean(x)) ** 2))
 
     # Calculate the start and end points of the line
     start = (int(m * min(y) + b), int(min(y)))
     end = (int(m * max(y) + b), int(max(y)))
 
-    return Line(start, end)
+    return Line(start, end, r2)
 
 class AnnotationSettings(BaseModel):
     minH: int
@@ -176,7 +196,15 @@ def annotate_frame(image, settings: AnnotationSettings):
 
     # Morphological transformations to reduce noise
     denoised_mask = combined_mask.copy()
-    
+
+    # This kernel connects pixels vertically, which is useful for near-vertical line detection
+    dilate_kernel = np.array([
+        [0, 1, 0],
+        [0, 1, 0],
+        [0, 1, 0]
+    ], dtype=np.uint8)
+    denoised_mask = cv2.dilate(denoised_mask, dilate_kernel, iterations=2)
+
     open_kernel = np.ones((settings.closeKernel, settings.closeKernel), np.uint8)
     denoised_mask = cv2.morphologyEx(denoised_mask, cv2.MORPH_OPEN, open_kernel)
 
@@ -187,20 +215,10 @@ def annotate_frame(image, settings: AnnotationSettings):
     mask_copy = denoised_mask.copy()
     islands = get_pixel_islands(mask_copy)
 
-    # Draw islands in random colors
-    island_mask = cv2.cvtColor(mask_copy, cv2.COLOR_GRAY2BGR)
-    for pixels in islands:
-        color = np.random.randint(0, 255, 3).tolist()
-        for y, x in pixels:
-            island_mask[y, x] = color
-
-    # Get mask of each island's coastline
-    coastline_mask = get_coastline_mask(islands, mask_copy)
-
     # Merge nearby islands into an archipelago
     archipelagos = merge_nearby_islands(islands, mask_copy, settings.distThreshold)
 
-    # Draw archipelagos in random colors
+    # Draw archipelagos in random colors - not used in final image, but useful for debugging
     archipelago_mask = cv2.cvtColor(mask_copy, cv2.COLOR_GRAY2BGR)
     for pixels in archipelagos:
         color = np.random.randint(0, 255, 3).tolist()
@@ -216,6 +234,12 @@ def annotate_frame(image, settings: AnnotationSettings):
         if len(pixels) < 100: # Skip small archipelagos
             continue
         line = get_best_fit_line(pixels)
+        if line.angle() < 30:  # Filter out lines that are too horizontal
+            continue
+        if line.length() < 20:  # Filter out lines that are too short
+            continue
+        if line.r2 < 0.5:  # Filter out lines with low R^2 value
+            continue # TODO: verify this works
         lines.append(line)
 
     # Sort lines by x-coordinate of midpoint
@@ -248,6 +272,7 @@ def annotate_frame(image, settings: AnnotationSettings):
         cv2.arrowedLine(steering_arrow, (width // 2, height), average_line.end, (255, 255, 255), 2)
 
     # Create a 4x3 grid of images
+    placeholder = np.zeros((height, width, 3), dtype=np.uint8)
     first_row = np.hstack([
         image,
         cv2.cvtColor(h_channel, cv2.COLOR_GRAY2BGR),
@@ -257,14 +282,14 @@ def annotate_frame(image, settings: AnnotationSettings):
     second_row = np.hstack([
         cv2.cvtColor(combined_mask, cv2.COLOR_GRAY2BGR),
         cv2.cvtColor(denoised_mask, cv2.COLOR_GRAY2BGR),
-        island_mask,
-        coastline_mask,
-    ])
-    third_row = np.hstack([
         archipelago_mask,
         mask_with_lines,
+    ])
+    third_row = np.hstack([
         image_with_lines,
         steering_arrow,
+        placeholder,
+        placeholder,
     ])
     combined = np.vstack([first_row, second_row, third_row])
 
