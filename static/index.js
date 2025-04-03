@@ -47,28 +47,6 @@ checkboxes.forEach(({ id, label }) => {
   elements[id] = document.getElementById(id);
 });
 
-const handleReceiveSettingsFromBackend = (settings) => {
-  sliders.forEach(({ id }) => {
-    const input = elements[id];
-    const display = document.getElementById(`${id}Value`);
-    input.value = settings[id];
-    display.textContent = settings[id];
-
-    input.addEventListener("input", () => {
-      display.textContent = input.value;
-    });
-
-    input.addEventListener("change", handleSettingsChange);
-  });
-
-  checkboxes.forEach(({ id }) => {
-    const input = elements[id];
-    input.checked = settings[id];
-
-    input.addEventListener("change", handleSettingsChange);
-  });
-}
-
 const handleSettingsChange = () => {
   const settingsJson = {};
   sliders.forEach(({ id }) => {
@@ -85,6 +63,33 @@ const handleSettingsChange = () => {
   });
 };
 
+// Load initial settings and bind listeners
+const loadSettings = () => {
+  console.log("Loading settings...");
+  fetch("/settings")
+    .then((res) => res.json())
+    .then((data) => {
+      sliders.forEach(({ id }) => {
+        const input = elements[id];
+        const display = document.getElementById(`${id}Value`);
+        input.value = data[id];
+        display.textContent = data[id];
+
+        input.addEventListener("input", () => {
+          display.textContent = input.value;
+        });
+
+        input.addEventListener("change", handleChange);
+      });
+      checkboxes.forEach(({ id }) => {
+        const input = elements[id];
+        input.checked = data[id];
+
+        input.addEventListener("change", handleChange);
+      });
+    });
+};
+
 const socket = new WebSocket(`ws://${window.location.host}/ws`);
 socket.addEventListener("open", () => {
   console.log("WebSocket connection established");
@@ -94,13 +99,14 @@ socket.addEventListener("message", (event) => {
   if (data.temperature) {
     temperatureElement.innerText = data.temperature;
   }
-  if (data.settings) {
-    handleReceiveSettingsFromBackend(data.settings);
-  }
   if (data.front) {
     frontCameraElement.src = data.front.combinedFrameJpgTxt;
   }
   if (data.rear) {
     rearCameraElement.src = data.rear.combinedFrameJpgTxt;
   }
+});
+
+window.addEventListener("load", () => {
+  loadSettings();
 });

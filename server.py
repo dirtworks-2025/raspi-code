@@ -119,6 +119,12 @@ templates = Jinja2Templates(directory="templates")
 def serve_home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
+@app.get("/settings")
+def get_settings():
+    with currentSettingsStateLock:
+        settings = currentSettingsState.settings
+    return settings.dict()
+
 @app.post("/settings")
 def set_settings(settings: AnnotationSettings):
     with currentSettingsStateLock:
@@ -160,18 +166,3 @@ async def websocket_endpoint(websocket: WebSocket):
         except Exception as e:
             print(f"WebSocket error: {e}")
             break
-
-@app.websocket("/ws/settings")
-async def settings_ws_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    try:
-        with currentSettingsStateLock:
-            settings = currentSettingsState.settings
-        await websocket.send_json(settings.dict())
-        while True:
-            data = await websocket.receive_json()
-            with currentSettingsStateLock:
-                settings = AnnotationSettings(**data)
-                currentSettingsState.update(settings)
-    except Exception as e:
-        print(f"WebSocket error: {e}")
