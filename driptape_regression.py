@@ -195,6 +195,11 @@ def annotate_frame(image, settings: AnnotationSettings):
 
     combined_mask = cv2.bitwise_and(hue_mask, cv2.bitwise_and(sat_mask, val_mask))
 
+    # Region of interest (ROI) mask
+    roi_mask = np.zeros_like(combined_mask)
+    roi_mask[height // 2:, :] = 255  # Lower half of the image
+    combined_mask = cv2.bitwise_and(combined_mask, roi_mask)
+
     # Morphological transformations to reduce noise
     denoised_mask = combined_mask.copy()
 
