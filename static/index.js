@@ -1,5 +1,7 @@
-const temperatureEl = document.getElementById("temperature");
+const temperatureElement = document.getElementById("temperature");
 const controlsContainer = document.getElementById("controls");
+const frontCameraElement = document.getElementById("frontCamera");
+const rearCameraElement = document.getElementById("rearCamera");
 
 const sliders = [
   { id: "minH", label: "Min. Hue", min: 0, max: 179 },
@@ -45,42 +47,29 @@ checkboxes.forEach(({ id, label }) => {
   elements[id] = document.getElementById(id);
 });
 
-// Load initial settings and bind listeners
-const loadSettings = () => {
-  console.log("Loading settings...");
-  fetch("/settings")
-    .then((res) => res.json())
-    .then((data) => {
-      sliders.forEach(({ id }) => {
-        const input = elements[id];
-        const display = document.getElementById(`${id}Value`);
-        input.value = data[id];
-        display.textContent = data[id];
+const handleReceiveSettingsFromBackend = (settings) => {
+  sliders.forEach(({ id }) => {
+    const input = elements[id];
+    const display = document.getElementById(`${id}Value`);
+    input.value = settings[id];
+    display.textContent = settings[id];
 
-        input.addEventListener("input", () => {
-          display.textContent = input.value;
-        });
-
-        input.addEventListener("change", handleChange);
-      });
-      checkboxes.forEach(({ id }) => {
-        const input = elements[id];
-        input.checked = data[id];
-
-        input.addEventListener("change", handleChange);
-      });
+    input.addEventListener("input", () => {
+      display.textContent = input.value;
     });
-};
 
-const getTemperature = () => {
-  fetch("/temperature")
-    .then((res) => res.json())
-    .then((data) => {
-      temperatureEl.innerText = data.temperature;
-    });
-};
+    input.addEventListener("change", handleSettingsChange);
+  });
 
-const handleChange = () => {
+  checkboxes.forEach(({ id }) => {
+    const input = elements[id];
+    input.checked = settings[id];
+
+    input.addEventListener("change", handleSettingsChange);
+  });
+}
+
+const handleSettingsChange = () => {
   const settingsJson = {};
   sliders.forEach(({ id }) => {
     settingsJson[id] = elements[id].value;
@@ -96,8 +85,22 @@ const handleChange = () => {
   });
 };
 
-window.addEventListener("load", () => {
-  loadSettings();
-  getTemperature();
-  setInterval(getTemperature, 5000);
+const socket = new WebSocket(`ws://${window.location.host}/ws`);
+socket.addEventListener("open", () => {
+  console.log("WebSocket connection established");
+});
+socket.addEventListener("message", (event) => {
+  const data = JSON.parse(event.data);
+  if (data.temperature) {
+    temperatureElement.innerText = data.temperature;
+  }
+  if (data.settings) {
+    handleReceiveSettingsFromBackend(data.settings);
+  }
+  if (data.front) {
+    frontCameraElement.src = data.front.combinedFrameJpgTxt;
+  }
+  if (data.rear) {
+    rearCameraElement.src = data.rear.combinedFrameJpgTxt;
+  }
 });

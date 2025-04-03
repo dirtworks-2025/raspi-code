@@ -1,14 +1,27 @@
-from fastapi import FastAPI
+import time
+from fastapi import FastAPI, WebSocket
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.requests import Request
-from fastapi.responses import StreamingResponse
+from fastapi.middleware.cors import CORSMiddleware
 import json
 import cv2
-from driptape_regression import annotate_frame, AnnotationSettings
+import asyncio
+import threading
+from driptape_regression import process_frame, AnnotationSettings
 import subprocess
 
 app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+fps = 5  # Frames per second for the video stream
 
 class AnnotationSettingsState:
     settings: AnnotationSettings
@@ -34,6 +47,7 @@ class AnnotationSettingsState:
         self.load()
 
 currentSettingsState = AnnotationSettingsState("state/settings.json")
+currentSettingsStateLock = threading.Lock()
 
 class Webcam:
     def __init__(self, id: int, rotate: bool = False):
@@ -69,7 +83,31 @@ class Webcams:
             return self.front.get_rotated_frame()
         return self.rear.get_frame()
 
-webcams = Webcams()
+latestFrontFrameOutput = None
+latestFrontFrameOutputLock = threading.Lock()
+latestRearFrameOutput = None
+latestRearFrameOutputLock = threading.Lock()
+
+def frame_processor():
+    global latestFrontFrameOutput, latestFrontFrameOutputLock, \
+           latestRearFrameOutput, latestRearFrameOutputLock, \
+           currentSettingsState, currentSettingsStateLock, \
+           fps
+    webcams = Webcams()
+    while True:
+        with currentSettingsStateLock:
+            settings = currentSettingsState.settings
+        maybeSwapped = settings.swapCameras
+        frontFrame = webcams.get_front_frame(maybeSwapped)
+        rearFrame = webcams.get_rear_frame(maybeSwapped)
+        frontFrameOutput = process_frame(frontFrame, settings) if frontFrame is not None else None
+        rearFrameOutput = process_frame(rearFrame, settings) if rearFrame is not None else None
+
+        with latestFrontFrameOutputLock:
+            latestFrontFrameOutput = frontFrameOutput
+        with latestRearFrameOutputLock:
+            latestRearFrameOutput = rearFrameOutput
+        time.sleep(1 / fps)
 
 # Mount the "static" folder for serving JS and other static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
@@ -81,41 +119,58 @@ templates = Jinja2Templates(directory="templates")
 def serve_home(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
-def generate_frames(cam_id: str):
-    fps = 5
-    frame_interval = int(1000 / fps)  # Convert seconds to milliseconds for waitKey()
-
-    while True:
-        maybeSwapped = currentSettingsState.settings.swapCameras
-        frame = webcams.get_front_frame(maybeSwapped) if cam_id == "front" else webcams.get_rear_frame(maybeSwapped)
-        if frame is None:
-            continue
-
-        frame = annotate_frame(frame, currentSettingsState.settings)
-
-        _, buffer = cv2.imencode(".jpg", frame)  # Encode frame as JPEG
-        yield (b"--frame\r\n"
-               b"Content-Type: image/jpeg\r\n\r\n" + buffer.tobytes() + b"\r\n")
-
-        cv2.waitKey(frame_interval)  # Ensures frame delay
-
-@app.get("/video/{cam_id}")
-def video_feed(cam_id: str):
-    return StreamingResponse(generate_frames(cam_id), media_type="multipart/x-mixed-replace; boundary=frame")
-
-@app.get("/settings")
-def get_settings():
-    return currentSettingsState.settings.dict()
-
 @app.post("/settings")
 def set_settings(settings: AnnotationSettings):
-    currentSettingsState.update(settings)
+    with currentSettingsStateLock:
+        currentSettingsState.update(settings)
 
-@app.get("/temperature")
 def get_temperature():
     try:
         result = subprocess.run(["vcgencmd", "measure_temp"], capture_output=True, text=True)
         temp = result.stdout.split("=")[1].split("'")[0]
-        return {"temperature": temp}
+        return temp
     except Exception as e:
         return {"error": str(e)}
+
+@app.on_event("startup")
+def start_background_tasks():
+    threading.Thread(target=frame_processor, daemon=True).start()
+    print("Background frame processor started.")
+
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    while True:
+        try:
+            with latestFrontFrameOutputLock:
+                frontFrameOutput = latestFrontFrameOutput
+            with latestRearFrameOutputLock:
+                rearFrameOutput = latestRearFrameOutput
+            temperature = get_temperature()
+
+            jsonData = {
+                "front": frontFrameOutput.dict() if frontFrameOutput else None,
+                "rear": rearFrameOutput.dict() if rearFrameOutput else None,
+                "temperature": temperature,
+            }
+
+            await websocket.send_json(jsonData)
+
+            await asyncio.sleep(1 / fps)
+        except Exception as e:
+            print(f"WebSocket error: {e}")
+            break
+
+@app.websocket("/ws/settings")
+async def settings_ws_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        with currentSettingsStateLock:
+            settings = currentSettingsState.settings
+        await websocket.send_json(settings.dict())
+        while True:
+            data = await websocket.receive_json()
+            with currentSettingsStateLock:
+                settings = AnnotationSettings(**data)
+                currentSettingsState.update(settings)
+        

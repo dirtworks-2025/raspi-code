@@ -1,3 +1,4 @@
+import base64
 import cv2
 import numpy as np
 from scipy.spatial.distance import cdist
@@ -173,7 +174,16 @@ class AnnotationSettings(BaseModel):
     distThreshold: int
     swapCameras: bool
 
-def annotate_frame(image, settings: AnnotationSettings):
+class CvOutputs(BaseModel):
+    combinedFrameJpgTxt: str
+    driveCmd: str
+    hoeCmd: str
+    lostContext: bool
+
+def process_frame(image, settings: AnnotationSettings) -> CvOutputs:
+    """
+    Processes a single frame of the video stream."
+    """
     image = cv2.resize(image, (360, 240))
     height, width = image.shape[:2]
 
@@ -301,4 +311,15 @@ def annotate_frame(image, settings: AnnotationSettings):
     ])
     combined = np.vstack([first_row, second_row, third_row])
 
-    return combined
+    # Encode the combined image to JPEG format
+    _, buffer = cv2.imencode('.jpg', combined)
+    jpg_as_text = base64.b64encode(buffer).decode('utf-8')
+    jpg_as_text = f"data:image/jpeg;base64,{jpg_as_text}"
+
+    outputs = CvOutputs(
+        combinedFrameJpgTxt=jpg_as_text,
+        driveCmd="",
+        hoeCmd="",
+        lostContext=False
+    )
+    return outputs
