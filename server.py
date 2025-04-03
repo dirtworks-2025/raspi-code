@@ -173,4 +173,5 @@ async def settings_ws_endpoint(websocket: WebSocket):
             with currentSettingsStateLock:
                 settings = AnnotationSettings(**data)
                 currentSettingsState.update(settings)
-        
+    except Exception as e:
+        print(f"WebSocket error: {e}")
