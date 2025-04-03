@@ -8,7 +8,7 @@ import json
 import cv2
 import asyncio
 import threading
-from driptape_regression import process_frame, AnnotationSettings
+from frame_processor import process_frame, AnnotationSettings
 import subprocess
 
 app = FastAPI()
