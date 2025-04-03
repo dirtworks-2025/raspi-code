@@ -153,7 +153,7 @@ def get_best_fit_line(pixels):
     m, b = coeffs
 
     # Get the R^2 value
-    r2 = 1 - (res / np.sum((x - np.mean(x)) ** 2))
+    r2 = 1 - (res / np.sum((y - np.mean(y)) ** 2))
 
     # Calculate the start and end points of the line
     start = (int(m * min(y) + b), int(min(y)))
@@ -237,12 +237,12 @@ def annotate_frame(image, settings: AnnotationSettings):
         if len(pixels) < 100: # Skip small archipelagos
             continue
         line = get_best_fit_line(pixels)
-        if line.angle() < 30:  # Filter out lines that are too horizontal
+        if abs(line.angle() - 90) > 45:  # Filter out lines too far from vertical
             continue
-        if line.length() < 20:  # Filter out lines that are too short
+        if line.length() < 100:  # Filter out lines that are too short
             continue
-        # if line.r2 < 0.5:  # Filter out lines with low R^2 value
-        #     continue # TODO: verify this works
+        if line.r2 < 0.95:  # Filter out lines with low R^2 value
+            continue
         lines.append(line)
 
     # Sort lines by x-coordinate of midpoint
