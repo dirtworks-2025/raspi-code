@@ -100,8 +100,8 @@ def frame_processor():
         maybeSwapped = settings.swapCameras
         frontFrame = webcams.get_front_frame(maybeSwapped)
         rearFrame = webcams.get_rear_frame(maybeSwapped)
-        frontFrameOutput = process_frame(frontFrame, settings) if frontFrame is not None else None
-        rearFrameOutput = process_frame(rearFrame, settings) if rearFrame is not None else None
+        frontFrameOutput = process_frame(frontFrame, settings, isRearCamera=False) if frontFrame is not None else None
+        rearFrameOutput = process_frame(rearFrame, settings, isRearCamera=True) if rearFrame is not None else None
 
         with latestFrontFrameOutputLock:
             latestFrontFrameOutput = frontFrameOutput

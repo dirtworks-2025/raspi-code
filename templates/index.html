@@ -1,19 +1,32 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>WebCam Streaming</title>
 </head>
+
 <body>
   <h2>WebCam Streaming from Raspberry Pi</h2>
-  <h3>Temperature: <span id="temperature">Loading...</span> °C</h3>
 
-  <div id="controls"></div>
+  <div id="container" style="display: flex; flex-direction: row;">
+    <div id="controls" style="margin-right: 20px;"></div>
+    <div id="rightPanel">
+      <div>Temperature: <span id="temperature">Loading...</span> °C</div>
+      <h4>Front Commands</h4>
+      <div id="frontDriveCmd"></div>
+      <div id="frontHoeCmd"></div>
+      <h4>Rear Commands</h4>
+      <div id="rearDriveCmd"></div>
+      <div id="rearHoeCmd"></div>
+    </div>
+  </div>
 
-  <img width="1440" height="480" id="frontCamera" />
-  <img width="1440" height="480" id="rearCamera" />
+  <img width="1440" height="320" id="frontCamera" />
+  <img width="1440" height="320" id="rearCamera" />
 
   <script type="text/javascript" src="static/index.js"></script>
 </body>
+
 </html>

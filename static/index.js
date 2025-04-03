@@ -3,6 +3,11 @@ const controlsContainer = document.getElementById("controls");
 const frontCameraElement = document.getElementById("frontCamera");
 const rearCameraElement = document.getElementById("rearCamera");
 
+const frontDriveCmdElement = document.getElementById("frontDriveCmd");
+const frontHoeCmdElement = document.getElementById("frontHoeCmd");
+const rearDriveCmdElement = document.getElementById("rearDriveCmd");
+const rearHoeCmdElement = document.getElementById("rearHoeCmd");
+
 const sliders = [
   { id: "minH", label: "Min. Hue", min: 0, max: 179 },
   { id: "maxH", label: "Max. Hue", min: 0, max: 179 },
@@ -79,13 +84,13 @@ const loadSettings = () => {
           display.textContent = input.value;
         });
 
-        input.addEventListener("change", handleChange);
+        input.addEventListener("change", handleSettingsChange);
       });
       checkboxes.forEach(({ id }) => {
         const input = elements[id];
         input.checked = data[id];
 
-        input.addEventListener("change", handleChange);
+        input.addEventListener("change", handleSettingsChange);
       });
     });
 };
@@ -101,9 +106,13 @@ socket.addEventListener("message", (event) => {
   }
   if (data.front) {
     frontCameraElement.src = data.front.combinedFrameJpgTxt;
+    frontDriveCmdElement.innerText = data.front.driveCmd;
+    frontHoeCmdElement.innerText = data.front.hoeCmd;
   }
   if (data.rear) {
     rearCameraElement.src = data.rear.combinedFrameJpgTxt;
+    rearDriveCmdElement.innerText = data.rear.driveCmd;
+    rearHoeCmdElement.innerText = data.rear.hoeCmd;
   }
 });
 

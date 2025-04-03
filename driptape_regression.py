@@ -180,7 +180,7 @@ class CvOutputs(BaseModel):
     hoeCmd: str
     lostContext: bool
 
-def process_frame(image, settings: AnnotationSettings) -> CvOutputs:
+def process_frame(image, settings: AnnotationSettings, isRearCamera: bool = False) -> CvOutputs:
     """
     Processes a single frame of the video stream."
     """
@@ -264,8 +264,8 @@ def process_frame(image, settings: AnnotationSettings) -> CvOutputs:
     lines.sort(key=lambda line: line.midpoint[0])
 
     # Determines the indices of the two lines closest to the image centerline on each side
-    right_line_index = 0
-    left_line_index = 0
+    right_line_index = -1
+    left_line_index = -1
 
     for idx, line in enumerate(lines):
         if line.midpoint[0] > width / 2:
@@ -281,13 +281,9 @@ def process_frame(image, settings: AnnotationSettings) -> CvOutputs:
         cv2.line(image_with_lines, line.start, line.end, color, 2)
 
     # Add a grey/white line at the image vertical centerline
-    cv2.line(mask_with_lines, (width // 2, 0), (width // 2, height), (128, 128, 128), 2)
-    cv2.line(image_with_lines, (width // 2, 0), (width // 2, height), (255, 255, 255), 2)
-
-    # Draw arrow representing steering correction
-    if left_line_index >= 0 and right_line_index < len(lines):
-        average_line = Line.avg_line(lines[right_line_index].inverted(), lines[left_line_index].inverted()).scaled(0.5)
-        cv2.arrowedLine(steering_arrow, (width // 2, height), average_line.end, (255, 255, 255), 2)
+    centerLine = Line((width // 2, 0), (width // 2, height))
+    cv2.line(mask_with_lines, centerLine.start, centerLine.end, (128, 128, 128), 2)
+    cv2.line(image_with_lines, centerLine.start, centerLine.end, (255, 255, 255), 2)
 
     # Create a 4x3 grid of images
     placeholder = np.zeros((height, width, 3), dtype=np.uint8)
@@ -299,27 +295,95 @@ def process_frame(image, settings: AnnotationSettings) -> CvOutputs:
     ])
     second_row = np.hstack([
         cv2.cvtColor(combined_mask, cv2.COLOR_GRAY2BGR),
-        cv2.cvtColor(denoised_mask, cv2.COLOR_GRAY2BGR),
         archipelago_mask,
         mask_with_lines,
-    ])
-    third_row = np.hstack([
         image_with_lines,
-        steering_arrow,
-        placeholder,
-        placeholder,
     ])
-    combined = np.vstack([first_row, second_row, third_row])
+    combined = np.vstack([first_row, second_row])
 
     # Encode the combined image to JPEG format
     _, buffer = cv2.imencode('.jpg', combined)
     jpg_as_text = base64.b64encode(buffer).decode('utf-8')
     jpg_as_text = f"data:image/jpeg;base64,{jpg_as_text}"
 
+    hoeCmd = get_hoe_cmd(
+        lines[left_line_index] if left_line_index >= 0 else None,
+        lines[right_line_index] if right_line_index >= 0 else None,
+        centerLine,
+        isRearCamera,
+    )
+    driveCmd = get_drive_cmd(
+        lines[left_line_index] if left_line_index >= 0 else None,
+        lines[right_line_index] if right_line_index >= 0 else None,
+        0.2,
+        isRearCamera,
+    )
+    lostContext = left_line_index < 0 or right_line_index < 0
+
     outputs = CvOutputs(
         combinedFrameJpgTxt=jpg_as_text,
-        driveCmd="",
-        hoeCmd="",
-        lostContext=False
+        driveCmd=driveCmd,
+        hoeCmd=hoeCmd,
+        lostContext=lostContext,
     )
     return outputs
+
+def get_hoe_cmd(leftLine: Line, rightLine: Line, centerLine: Line, isRearCamera: bool) -> str:
+    """
+    Returns the hoe command based on the left and right lines. The goal is to keep the hoe aligned with the centerline.
+    """
+    if leftLine is None or rightLine is None or centerLine is None:
+        return "hoe 0 0"
+
+    avgMidpointX = (leftLine.midpoint[0] + rightLine.midpoint[0]) // 2
+    delta = centerLine.midpoint[0] - avgMidpointX
+
+    maxExpectedDelta = 50
+
+    # stepDelay should range from 10000 to 3000 uS, with 10000 representing a small adjustment
+    # and 3000 representing a large adjustment. 0 represents no adjustment.
+    stepDelayMag = int(10000 - (abs(delta) / maxExpectedDelta) * 7000)
+    stepDelay = delta / abs(delta) * stepDelayMag if delta != 0 else 0
+
+    if isRearCamera:
+        stepDelay = -stepDelay
+
+    stepDelay = str(stepDelay)
+    return f"hoe {stepDelay} 0"
+
+def get_drive_cmd(leftLine: Line, rightLine: Line, forwardSpeed: float, isRearCamera: bool) -> str:
+    """
+    Returns the drive command based on the left and right lines. The goal is to keep robot heading in the direction of the centerline.
+    """
+    if leftLine is None or rightLine is None:
+        return "drive 0 0"
+    
+    forwardSpeed = clamp(forwardSpeed, 0, 1)
+
+    avgAngle = (leftLine.angle() + rightLine.angle() - 180) / 2
+    avgAngle = clamp(avgAngle, -45, 45)    
+    
+    maxExpectedAngle = 45
+    forwardPwm = 255 * forwardSpeed
+    pwmLimit = 255
+
+    # left and right tank drive speeds should range from -255 to 255, with 0 representing zero velocity.
+    leftSpeed = int(forwardPwm + (avgAngle / maxExpectedAngle) * forwardPwm)
+    rightSpeed = int(forwardPwm - (avgAngle / maxExpectedAngle) * forwardPwm)
+
+    if isRearCamera:
+        leftSpeed, rightSpeed = -rightSpeed, -leftSpeed
+
+    leftSpeed = clamp(leftSpeed, -pwmLimit, pwmLimit)
+    rightSpeed = clamp(rightSpeed, -pwmLimit, pwmLimit)
+
+    leftSpeed = str(leftSpeed)
+    rightSpeed = str(rightSpeed)
+
+    return f"drive {leftSpeed} {rightSpeed}"
+    
+def clamp(value, min_value, max_value):
+    """
+    Clamps a value between a minimum and maximum value.
+    """
+    return max(min(value, max_value), min_value)
