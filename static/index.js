@@ -5,8 +5,10 @@ const rearCameraElement = document.getElementById("rearCamera");
 
 const frontDriveCmdElement = document.getElementById("frontDriveCmd");
 const frontHoeCmdElement = document.getElementById("frontHoeCmd");
+const frontLostContextElement = document.getElementById("frontLostContext");
 const rearDriveCmdElement = document.getElementById("rearDriveCmd");
 const rearHoeCmdElement = document.getElementById("rearHoeCmd");
+const rearLostContextElement = document.getElementById("rearLostContext");
 
 const sliders = [
   { id: "minH", label: "Min. Hue", min: 0, max: 179 },
@@ -108,11 +110,21 @@ socket.addEventListener("message", (event) => {
     frontCameraElement.src = data.front.combinedFrameJpgTxt;
     frontDriveCmdElement.innerText = data.front.driveCmd;
     frontHoeCmdElement.innerText = data.front.hoeCmd;
+    if (data.front.lostContext) {
+      frontLostContextElement.innerText = "Lost Context";
+    } else {
+      frontLostContextElement.innerText = "";
+    }
   }
   if (data.rear) {
     rearCameraElement.src = data.rear.combinedFrameJpgTxt;
     rearDriveCmdElement.innerText = data.rear.driveCmd;
     rearHoeCmdElement.innerText = data.rear.hoeCmd;
+    if (data.rear.lostContext) {
+      rearLostContextElement.innerText = "Lost Context";
+    } else {
+      rearLostContextElement.innerText = "";
+    }
   }
 });
 

@@ -10,6 +10,7 @@ import asyncio
 import threading
 from frame_processor import process_frame, AnnotationSettings
 import subprocess
+from serial_comms import ArduinoSerial
 
 app = FastAPI()
 
@@ -20,6 +21,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+arduinoSerial = ArduinoSerial()
 
 fps = 5  # Frames per second for the video stream
 
@@ -103,11 +106,28 @@ def frame_processor():
         frontFrameOutput = process_frame(frontFrame, settings, isRearCamera=False) if frontFrame is not None else None
         rearFrameOutput = process_frame(rearFrame, settings, isRearCamera=True) if rearFrame is not None else None
 
+        if frontFrameOutput is not None:
+            maybeSendSerialCmds(
+                frontFrameOutput.hoeCmd, frontFrameOutput.driveCmd, frontFrameOutput.lostContext
+            )
+        # if rearFrameOutput is not None:
+        #     maybeSendSerialCmds(
+        #         rearFrameOutput.hoeCmd, rearFrameOutput.driveCmd, rearFrameOutput.lostContext
+        #     )
+
         with latestFrontFrameOutputLock:
             latestFrontFrameOutput = frontFrameOutput
         with latestRearFrameOutputLock:
             latestRearFrameOutput = rearFrameOutput
         time.sleep(1 / fps)
+
+def maybeSendSerialCmds(hoeCmd: str, driveCmd: str, lostContext: bool):
+    if lostContext:
+        return
+    if hoeCmd:
+        arduinoSerial.send_command(hoeCmd)
+    # if driveCmd:
+    #     arduinoSerial.send_command(driveCmd)
 
 # Mount the "static" folder for serving JS and other static files
 app.mount("/static", StaticFiles(directory="static"), name="static")

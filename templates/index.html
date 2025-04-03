@@ -12,14 +12,20 @@
 
   <div id="container" style="display: flex; flex-direction: row;">
     <div id="controls" style="margin-right: 20px;"></div>
-    <div id="rightPanel">
-      <div>Temperature: <span id="temperature">Loading...</span> °C</div>
+    <h3 style="margin-right: 20px;">
+      Temperature: <span id="temperature">Loading...</span> °C
+    </h3>
+    <div style="margin-right: 20px;">
       <h4>Front Commands</h4>
       <div id="frontDriveCmd"></div>
       <div id="frontHoeCmd"></div>
+      <div id="frontLostContext" style="color: red;"></div>
+    </div>
+    <div style="margin-right: 20px;">
       <h4>Rear Commands</h4>
       <div id="rearDriveCmd"></div>
       <div id="rearHoeCmd"></div>
+      <div id="rearLostContext" style="color: red;"></div>
     </div>
   </div>
 
