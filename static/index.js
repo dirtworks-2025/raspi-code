@@ -11,12 +11,12 @@ const rearHoeCmdElement = document.getElementById("rearHoeCmd");
 const rearLostContextElement = document.getElementById("rearLostContext");
 
 const sliders = [
-  { id: "minH", label: "Min. Hue", min: 0, max: 179 },
-  { id: "maxH", label: "Max. Hue", min: 0, max: 179 },
-  { id: "minS", label: "Min. Saturation", min: 0, max: 255 },
-  { id: "maxS", label: "Max. Saturation", min: 0, max: 255 },
-  { id: "minV", label: "Min. Value", min: 0, max: 255 },
-  { id: "maxV", label: "Max. Value", min: 0, max: 255 },
+  { id: "hLowerPercentile", label: "Hue - Lower Percentile", min: 0, max: 100 },
+  { id: "hUpperPercentile", label: "Hue - Upper Percentile", min: 0, max: 100 },
+  { id: "sLowerPercentile", label: "Saturation - Lower Percentile", min: 0, max: 100 },
+  { id: "sUpperPercentile", label: "Saturation - Upper Percentile", min: 0, max: 100 },
+  { id: "vLowerPercentile", label: "Value - Lower Percentile", min: 0, max: 100 },
+  { id: "vUpperPercentile", label: "Value - Upper Percentile", min: 0, max: 100 },
   { id: "closeKernel", label: "Close Kernel Size", min: 0, max: 8 },
   { id: "openKernel", label: "Open Kernel Size", min: 0, max: 8 },
   { id: "distThreshold", label: "Distance Threshold", min: 0, max: 20 },

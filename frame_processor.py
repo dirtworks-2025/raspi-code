@@ -153,13 +153,13 @@ def get_best_fit_line(pixels):
 
     return Line(start, end, r2)
 
-class AnnotationSettings(BaseModel):
-    minH: int
-    maxH: int
-    minS: int
-    maxS: int
-    minV: int
-    maxV: int
+class CvSettings(BaseModel):
+    hLowerPercentile: int
+    hUpperPercentile: int
+    sLowerPercentile: int
+    sUpperPercentile: int
+    vLowerPercentile: int
+    vUpperPercentile: int
     closeKernel: int
     openKernel: int
     distThreshold: int
@@ -171,7 +171,7 @@ class CvOutputs(BaseModel):
     hoeCmd: str
     lostContext: bool
 
-def process_frame(image, settings: AnnotationSettings, isRearCamera: bool = False) -> CvOutputs:
+def process_frame(image, settings: CvSettings, isRearCamera: bool = False) -> CvOutputs:
     """
     Processes a single frame of the video stream."
     """
@@ -182,17 +182,16 @@ def process_frame(image, settings: AnnotationSettings, isRearCamera: bool = Fals
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     h_channel, s_channel, v_channel = cv2.split(hsv)
 
-    lower = np.array([settings.minH, 0, 0])
-    upper = np.array([settings.maxH, 255, 255])
-    hue_mask = cv2.inRange(hsv, lower, upper)
+    minH = np.percentile(h_channel, settings.hLowerPercentile)
+    maxH = np.percentile(h_channel, settings.hUpperPercentile)
+    minS = np.percentile(s_channel, settings.sLowerPercentile)
+    maxS = np.percentile(s_channel, settings.sUpperPercentile)
+    minV = np.percentile(v_channel, settings.vLowerPercentile)
+    maxV = np.percentile(v_channel, settings.vUpperPercentile)
 
-    lower = np.array([0, settings.minS, 0])
-    upper = np.array([179, settings.maxS, 255])
-    sat_mask = cv2.inRange(hsv, lower, upper)
-
-    lower = np.array([0, 0, settings.minV])
-    upper = np.array([179, 255, settings.maxV])
-    val_mask = cv2.inRange(hsv, lower, upper)
+    hue_mask = cv2.inRange(h_channel, minH, maxH)
+    sat_mask = cv2.inRange(s_channel, minS, maxS)
+    val_mask = cv2.inRange(v_channel, minV, maxV)
 
     combined_mask = cv2.bitwise_and(hue_mask, cv2.bitwise_and(sat_mask, val_mask))
 

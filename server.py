@@ -8,7 +8,7 @@ import json
 import cv2
 import asyncio
 import threading
-from frame_processor import process_frame, AnnotationSettings, dont_process_frame
+from frame_processor import process_frame, CvSettings, dont_process_frame
 import subprocess
 from serial_comms import ArduinoSerial
 from typing import Literal
@@ -32,10 +32,10 @@ drivingDirectionLock = threading.Lock()
 fps = 30  # Frames per second for the video stream
 
 class AnnotationSettingsState:
-    settings: AnnotationSettings
+    settings: CvSettings
     path: str
 
-    def update(self, newSettings: AnnotationSettings):
+    def update(self, newSettings: CvSettings):
         self.settings = newSettings
         self.save()
     
@@ -46,7 +46,7 @@ class AnnotationSettingsState:
     def load(self):
         try:
             with open(self.path, "r") as f:
-                self.settings = AnnotationSettings(**json.load(f))
+                self.settings = CvSettings(**json.load(f))
         except:
             raise ValueError("Failed to load settings from file.")
 
@@ -163,7 +163,7 @@ def get_settings():
     return settings.dict()
 
 @app.post("/settings")
-def set_settings(settings: AnnotationSettings):
+def set_settings(settings: CvSettings):
     with currentSettingsStateLock:
         currentSettingsState.update(settings)
 
