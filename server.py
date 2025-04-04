@@ -8,9 +8,10 @@ import json
 import cv2
 import asyncio
 import threading
-from frame_processor import process_frame, AnnotationSettings
+from frame_processor import process_frame, AnnotationSettings, dont_process_frame
 import subprocess
 from serial_comms import ArduinoSerial
+from typing import Literal
 
 app = FastAPI()
 
@@ -24,7 +25,11 @@ app.add_middleware(
 
 arduinoSerial = ArduinoSerial()
 
-fps = 5  # Frames per second for the video stream
+DrivingDirectionType = Literal["FORWARD", "BACKWARD"]
+drivingDirection = "FORWARD"  # Default driving direction
+drivingDirectionLock = threading.Lock()
+
+fps = 30  # Frames per second for the video stream
 
 class AnnotationSettingsState:
     settings: AnnotationSettings
@@ -100,20 +105,30 @@ def frame_processor():
     while True:
         with currentSettingsStateLock:
             settings = currentSettingsState.settings
+        with drivingDirectionLock:
+            direction = drivingDirection
         maybeSwapped = settings.swapCameras
         frontFrame = webcams.get_front_frame(maybeSwapped)
         rearFrame = webcams.get_rear_frame(maybeSwapped)
-        frontFrameOutput = process_frame(frontFrame, settings, isRearCamera=False) if frontFrame is not None else None
-        rearFrameOutput = process_frame(rearFrame, settings, isRearCamera=True) if rearFrame is not None else None
 
-        if frontFrameOutput is not None:
+        # Only process either front or rear frame depending on driving direction
+        frontFrameOutput = None
+        if frontFrame is not None and direction == "FORWARD":
+            frontFrameOutput = process_frame(frontFrame, settings, isRearCamera=False)
             maybeSendSerialCmds(
                 frontFrameOutput.hoeCmd, frontFrameOutput.driveCmd, frontFrameOutput.lostContext
             )
-        # if rearFrameOutput is not None:
-        #     maybeSendSerialCmds(
-        #         rearFrameOutput.hoeCmd, rearFrameOutput.driveCmd, rearFrameOutput.lostContext
-        #     )
+        elif frontFrame is not None and direction == "BACKWARD":
+            frontFrameOutput = dont_process_frame(frontFrame)
+
+        rearFrameOutput = None
+        if rearFrame is not None and direction == "BACKWARD":
+            rearFrameOutput = process_frame(rearFrame, settings, isRearCamera=True)
+            maybeSendSerialCmds(
+                rearFrameOutput.hoeCmd, rearFrameOutput.driveCmd, rearFrameOutput.lostContext
+            )
+        elif rearFrame is not None and direction == "FORWARD":
+            rearFrameOutput = dont_process_frame(rearFrame)
 
         with latestFrontFrameOutputLock:
             latestFrontFrameOutput = frontFrameOutput

@@ -1,8 +1,14 @@
 import base64
 import cv2
 import numpy as np
-from scipy.spatial.distance import cdist
+from scipy.spatial import KDTree
 from pydantic import BaseModel
+import random
+
+NUM_COLORS = 20
+DEBUG_COLORS = [
+    tuple(random.randint(0,255) for _ in range(3)) for _ in range(NUM_COLORS)
+]
 
 def nothing(x):
     pass
@@ -16,29 +22,15 @@ def get_pixel_islands(mask):
     pixel_islands = []
     for i in range(1, num_labels):  # Ignore background (label 0)
         if stats[i, cv2.CC_STAT_AREA] >= 10:  # Filter out small components
-            y, x = np.where(labels == i)
-            pixels = list(zip(y, x))
+            x0, y0, w, h, _ = stats[i]
+            # Extract the region of interest for the current component
+            # This is more efficient than using np.where for the entire mask
+            # and avoids unnecessary memory allocation
+            region = labels[y0:y0+h, x0:x0+w] == i
+            ys, xs = np.where(region)
+            pixels = list(zip(ys + y0, xs + x0))
             pixel_islands.append(pixels)
-    
     return pixel_islands
-
-def get_coastline_mask(islands, mask):
-    """
-    Extracts the coastlines of each connected component. Returns a binary mask with coastlines colored randomly.
-    """
-    coastline_mask_grayscale = np.zeros_like(mask)
-    coastline_mask = cv2.cvtColor(coastline_mask_grayscale, cv2.COLOR_GRAY2BGR)
-    for pixels in islands:
-        temp_mask = np.zeros_like(mask)
-        for y, x in pixels:
-            temp_mask[y, x] = 255  # Fill pixels for current component
-
-        contours, _ = cv2.findContours(temp_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
-        random_color = np.random.randint(0, 255, 3).tolist()
-        if contours:
-            cv2.drawContours(coastline_mask, contours, -1, random_color, 1)
-
-    return coastline_mask
 
 def merge_nearby_islands(islands, mask, distance_threshold):
     """
@@ -63,26 +55,25 @@ def merge_nearby_islands(islands, mask, distance_threshold):
     # Extract borders of each component
     borders = []
     for pixels in islands:
+        coords = np.array(pixels, dtype=np.int32)
         temp_mask = np.zeros_like(mask)
-        for y, x in pixels:
-            temp_mask[y, x] = 255  # Fill pixels for current component
-
+        temp_mask[coords[:, 0], coords[:, 1]] = 255
         contours, _ = cv2.findContours(temp_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         if contours:
-            borders.append(np.vstack(contours[0]))  # Store boundary pixels for each component
+            borders.append(np.vstack(contours[0]))
+        else:
+            borders.append(np.empty((0, 1, 2), dtype=np.int32))
 
-    # Compute pairwise distances between component borders
     for i in range(num_islands):
         for j in range(i + 1, num_islands):
-            if len(borders[i]) == 0 or len(borders[j]) == 0:
-                continue  # Skip if no border detected
-            dist_matrix = cdist(borders[i], borders[j])  # Compute all pairwise distances
-            min_dist = np.min(dist_matrix)
-
+            if borders[i].size == 0 or borders[j].size == 0:
+                continue
+            tree = KDTree(borders[i].reshape(-1, 2))
+            dists, _ = tree.query(borders[j].reshape(-1, 2), k=1)
+            min_dist = np.min(dists)
             if min_dist < distance_threshold:
                 union(i, j)
 
-    # Group components based on final merged sets
     merged_archipelagos = {}
     for i in range(num_islands):
         root = find(i)
@@ -132,7 +123,7 @@ class Line:
         """
         Returns the length of the line.
         """
-        return np.sqrt((self.end[0] - self.start[0]) ** 2 + (self.end[1] - self.start[1]) ** 2)
+        return np.hypot(self.end[0] - self.start[0], self.end[1] - self.start[1])
 
     @classmethod
     def avg_line(cls, line1: 'Line', line2: 'Line'):
@@ -184,7 +175,7 @@ def process_frame(image, settings: AnnotationSettings, isRearCamera: bool = Fals
     """
     Processes a single frame of the video stream."
     """
-    image = cv2.resize(image, (360, 240))
+    image = cv2.resize(image, (270, 180))
     height, width = image.shape[:2]
 
     # Apply HSV filters
@@ -236,10 +227,10 @@ def process_frame(image, settings: AnnotationSettings, isRearCamera: bool = Fals
     # Merge nearby islands into an archipelago
     archipelagos = merge_nearby_islands(islands, mask_copy, settings.distThreshold)
 
-    # Draw archipelagos in random colors - not used in final image, but useful for debugging
+    # Draw archipelagos in random colors for debugging
     archipelago_mask = cv2.cvtColor(mask_copy, cv2.COLOR_GRAY2BGR)
-    for pixels in archipelagos:
-        color = np.random.randint(0, 255, 3).tolist()
+    for idx, pixels in enumerate(archipelagos):
+        color = DEBUG_COLORS[idx % NUM_COLORS]
         for y, x in pixels:
             archipelago_mask[y, x] = color
 
@@ -254,7 +245,7 @@ def process_frame(image, settings: AnnotationSettings, isRearCamera: bool = Fals
         line = get_best_fit_line(pixels)
         if abs(line.angle() - 90) > 45:  # Filter out lines too far from vertical
             continue
-        if line.length() < 100:  # Filter out lines that are too short
+        if line.length() < 70:  # Filter out lines that are too short
             continue
         if line.r2 < 0.95:  # Filter out lines with low R^2 value
             continue
@@ -302,7 +293,7 @@ def process_frame(image, settings: AnnotationSettings, isRearCamera: bool = Fals
     combined = np.vstack([first_row, second_row])
 
     # Encode the combined image to JPEG format
-    _, buffer = cv2.imencode('.jpg', combined)
+    _, buffer = cv2.imencode('.jpg', combined, [cv2.IMWRITE_JPEG_QUALITY, 50])
     jpg_as_text = base64.b64encode(buffer).decode('utf-8')
     jpg_as_text = f"data:image/jpeg;base64,{jpg_as_text}"
 
@@ -327,6 +318,27 @@ def process_frame(image, settings: AnnotationSettings, isRearCamera: bool = Fals
         lostContext=lostContext,
     )
     return outputs
+
+def dont_process_frame(image):
+    """
+    Pads the image with placeholders to create a 4x3 grid.
+    """
+    height, width = image.shape[:2]
+    placeholder = np.zeros((height, width, 3), dtype=np.uint8)
+    first_row = np.hstack([image, placeholder, placeholder, placeholder])
+    second_row = np.hstack([placeholder, placeholder, placeholder, placeholder])
+    combined = np.vstack([first_row, second_row])
+    
+    # Encode the combined image to JPEG format
+    _, buffer = cv2.imencode('.jpg', combined, [cv2.IMWRITE_JPEG_QUALITY, 20])
+    jpg_as_text = base64.b64encode(buffer).decode('utf-8')
+    jpg_as_text = f"data:image/jpeg;base64,{jpg_as_text}"
+    return CvOutputs(
+        combinedFrameJpgTxt=jpg_as_text,
+        driveCmd="n/a",
+        hoeCmd="n/a",
+        lostContext=True,
+    )
 
 def get_hoe_cmd(leftLine: Line, rightLine: Line, centerLine: Line, isRearCamera: bool) -> str:
     """
