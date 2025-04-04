@@ -2,9 +2,16 @@ import serial
 import threading
 import time
 
+def find_acm_port():
+    ports = serial.tools.list_ports.comports()
+    for p in ports:
+        if 'ACM' in p.device:
+            return p.device
+    return None
+
 class ArduinoSerial:
-    def __init__(self, port="/dev/ttyACM0", baudrate=115200, log=True):
-        self.port = port
+    def __init__(self, port=None, baudrate=115200, log=True):
+        self.port = port if port else find_acm_port()
         self.baudrate = baudrate
         self.log = log
         self.ser = None
@@ -19,6 +26,7 @@ class ArduinoSerial:
             self.running = True
 
             if self.log:
+                print(f"[Arduino] Connected to {self.port} at {self.baudrate} baud")
                 self.thread = threading.Thread(target=self._read_from_port, daemon=True)
                 self.thread.start()
         except serial.SerialException as e:
@@ -39,8 +47,6 @@ class ArduinoSerial:
         if self.ser and self.ser.is_open:
             try:
                 self.ser.write(cmd.encode('utf-8'))
-                if self.log:
-                    print(f"[Send] {cmd.strip()}")
             except serial.SerialException as e:
                 print(f"[Write Error] {e}")
 
