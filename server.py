@@ -138,6 +138,8 @@ def frame_processor():
 
 def maybeSendSerialCmds(hoeCmd: str, driveCmd: str, lostContext: bool):
     if lostContext:
+        arduinoSerial.send_command("hoe 0 0")
+        arduinoSerial.send_command("drive 0 0")
         return
     if hoeCmd:
         arduinoSerial.send_command(hoeCmd)

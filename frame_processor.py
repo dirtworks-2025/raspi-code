@@ -348,7 +348,11 @@ def get_hoe_cmd(leftLine: Line, rightLine: Line, centerLine: Line, isRearCamera:
         return "hoe 0 0"
 
     avgMidpointX = (leftLine.midpoint[0] + rightLine.midpoint[0]) // 2
-    delta = centerLine.midpoint[0] - avgMidpointX
+    delta = avgMidpointX - centerLine.midpoint[0]
+
+    # Deadzone
+    if abs(delta) < 5:
+        return "hoe 0 0"
 
     maxExpectedDelta = 50
 

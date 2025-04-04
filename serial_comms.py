@@ -1,12 +1,16 @@
 import serial
 import threading
 import time
+import glob
+
+
 
 def find_acm_port():
-    ports = serial.tools.list_ports.comports()
-    for p in ports:
-        if 'ACM' in p.device:
-            return p.device
+    ports = glob.glob('/dev/ttyACM*')
+    if ports:
+        return ports[0]
+    else:
+        print("No ACM port found.")
     return None
 
 class ArduinoSerial:
@@ -46,7 +50,7 @@ class ArduinoSerial:
     def send_command(self, cmd):
         if self.ser and self.ser.is_open:
             try:
-                self.ser.write(cmd.encode('utf-8'))
+                self.ser.write(cmd.encode('utf-8') + b'\n')
             except serial.SerialException as e:
                 print(f"[Write Error] {e}")
 
@@ -55,9 +59,3 @@ class ArduinoSerial:
         if self.ser and self.ser.is_open:
             self.ser.close()
             print("[Connection closed]")
-
-# Example usage:
-# arduino = ArduinoSerial()
-# arduino.send_command("LED_ON\n")
-# time.sleep(5)
-# arduino.close()
