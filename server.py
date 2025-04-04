@@ -23,7 +23,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-arduinoSerial = ArduinoSerial()
+serialLogHistory = []
+serialLogHistoryLock = threading.Lock()
+
+def handle_serial_log(message: str):
+    print(message)
+    # Append the message to the serial log history
+    with serialLogHistoryLock:
+        serialLogHistory.append(message)
+        if len(serialLogHistory) > 100:
+            serialLogHistory.pop(0)
+
+arduinoSerial = ArduinoSerial(handle_serial_log)
 
 DrivingDirectionType = Literal["FORWARD", "BACKWARD"]
 drivingDirection = "FORWARD"  # Default driving direction
@@ -190,11 +201,14 @@ async def websocket_endpoint(websocket: WebSocket):
             with latestRearFrameOutputLock:
                 rearFrameOutput = latestRearFrameOutput
             temperature = get_temperature()
+            with serialLogHistoryLock:
+                serialLog = serialLogHistory.copy()
 
             jsonData = {
                 "front": frontFrameOutput.dict() if frontFrameOutput else None,
                 "rear": rearFrameOutput.dict() if rearFrameOutput else None,
                 "temperature": temperature,
+                "serialLogHistory": serialLog,
             }
 
             await websocket.send_json(jsonData)

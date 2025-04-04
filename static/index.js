@@ -10,6 +10,8 @@ const rearDriveCmdElement = document.getElementById("rearDriveCmd");
 const rearHoeCmdElement = document.getElementById("rearHoeCmd");
 const rearLostContextElement = document.getElementById("rearLostContext");
 
+const logHistoryElement = document.getElementById("logHistory");
+
 const sliders = [
   { id: "hLowerPercentile", label: "Hue - Lower Percentile", min: 0, max: 100 },
   { id: "hUpperPercentile", label: "Hue - Upper Percentile", min: 0, max: 100 },
@@ -125,6 +127,15 @@ socket.addEventListener("message", (event) => {
     } else {
       rearLostContextElement.innerText = "";
     }
+  }
+  if (data.serialLogHistory) {
+    logHistoryElement.innerHTML = ""; // Clear previous log entries
+    for (const logEntry of data.serialLogHistory) {
+      const logEntryElement = document.createElement("div");
+      logEntryElement.innerText = logEntry;
+      logHistoryElement.appendChild(logEntryElement);
+    }
+    logHistoryElement.scrollTop = logHistoryElement.scrollHeight; // Scroll to the bottom
   }
 });
 
