@@ -355,9 +355,11 @@ def get_hoe_cmd(leftLine: Line, rightLine: Line, centerLine: Line, isRearCamera:
 
     maxExpectedDelta = 50
 
-    # stepDelay should range from 10000 to 3000 uS, with 10000 representing a small adjustment
-    # and 3000 representing a large adjustment. 0 represents no adjustment.
-    stepDelayMag = int(10000 - (abs(delta) / maxExpectedDelta) * 7000)
+    # stepDelay should range from maxDelay to minDelay uS, with maxDelay representing a small adjustment
+    # and minDelay representing a large adjustment. 0 represents no adjustment.
+    maxDelay = 20000
+    minDelay = 5000
+    stepDelayMag = int(maxDelay - (abs(delta) / maxExpectedDelta) * (maxDelay - minDelay))
     stepDelay = delta / abs(delta) * stepDelayMag if delta != 0 else 0
 
     if isRearCamera:
