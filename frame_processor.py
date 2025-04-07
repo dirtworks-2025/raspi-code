@@ -381,12 +381,14 @@ def get_drive_cmd(leftLine: Line, rightLine: Line, forwardSpeed: float, isRearCa
     maxExpectedAngle = 45
     forwardPwm = 255 * forwardSpeed
     pwmLimit = 255
-    intensity = 2
-    correction = (avgAngle / maxExpectedAngle) * forwardPwm * intensity
+    forward_correction = (abs(avgAngle) / maxExpectedAngle) * forwardPwm * 2
+    reverse_correction = (abs(avgAngle) / maxExpectedAngle) * forwardPwm * -1
+    leftCorrection = forward_correction if avgAngle > 0 else reverse_correction
+    rightCorrection = reverse_correction if avgAngle > 0 else forward_correction
 
     # left and right tank drive speeds should range from -255 to 255, with 0 representing zero velocity.
-    leftSpeed = int(forwardPwm + correction)
-    rightSpeed = int(forwardPwm - correction)
+    leftSpeed = int(forwardPwm + leftCorrection)
+    rightSpeed = int(forwardPwm + rightCorrection)
 
     if isRearCamera:
         leftSpeed, rightSpeed = -rightSpeed, -leftSpeed
