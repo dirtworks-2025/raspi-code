@@ -12,6 +12,8 @@ const rearLostContextElement = document.getElementById("rearLostContext");
 
 const logHistoryElement = document.getElementById("logHistory");
 
+const drivingDirectionElement = document.getElementById("drivingDirection");
+
 const sliders = [
   { id: "hLowerPercentile", label: "Hue - Lower Percentile", min: 0, max: 100 },
   { id: "hUpperPercentile", label: "Hue - Upper Percentile", min: 0, max: 100 },
@@ -137,8 +139,18 @@ socket.addEventListener("message", (event) => {
     }
     logHistoryElement.scrollTop = logHistoryElement.scrollHeight; // Scroll to the bottom
   }
+  if (data.drivingDirection) {
+    drivingDirectionElement.innerText = data.drivingDirection;
+  }
 });
 
 window.addEventListener("load", () => {
   loadSettings();
+});
+
+drivingDirectionElement.addEventListener("click", () => {
+  
+  fetch("/change_direction", {
+    method: "POST",
+  });
 });

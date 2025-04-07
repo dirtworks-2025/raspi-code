@@ -178,6 +178,16 @@ def set_settings(settings: CvSettings):
     with currentSettingsStateLock:
         currentSettingsState.update(settings)
 
+@app.post("/change_direction")
+def change_direction():
+    global drivingDirection
+    with drivingDirectionLock:
+        if drivingDirection == "FORWARD":
+            drivingDirection = "BACKWARD"
+        else:
+            drivingDirection = "FORWARD"
+    return {"direction": drivingDirection}
+
 def get_temperature():
     try:
         result = subprocess.run(["vcgencmd", "measure_temp"], capture_output=True, text=True)
@@ -203,12 +213,15 @@ async def websocket_endpoint(websocket: WebSocket):
             temperature = get_temperature()
             with serialLogHistoryLock:
                 serialLog = serialLogHistory.copy()
+            with drivingDirectionLock:
+                direction = drivingDirection
 
             jsonData = {
                 "front": frontFrameOutput.dict() if frontFrameOutput else None,
                 "rear": rearFrameOutput.dict() if rearFrameOutput else None,
                 "temperature": temperature,
                 "serialLogHistory": serialLog,
+                "drivingDirection": direction,
             }
 
             await websocket.send_json(jsonData)
