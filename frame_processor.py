@@ -246,7 +246,7 @@ def process_frame(image, settings: CvSettings, isRearCamera: bool = False) -> Cv
             continue
         if line.length() < 70:  # Filter out lines that are too short
             continue
-        if line.r2 < 0.95:  # Filter out lines with low R^2 value
+        if line.r2 < 0.90:  # Filter out lines with low R^2 value
             continue
         lines.append(line)
 
@@ -381,10 +381,12 @@ def get_drive_cmd(leftLine: Line, rightLine: Line, forwardSpeed: float, isRearCa
     maxExpectedAngle = 45
     forwardPwm = 255 * forwardSpeed
     pwmLimit = 255
+    intensity = 2
+    correction = (avgAngle / maxExpectedAngle) * forwardPwm * intensity
 
     # left and right tank drive speeds should range from -255 to 255, with 0 representing zero velocity.
-    leftSpeed = int(forwardPwm + (avgAngle / maxExpectedAngle) * forwardPwm)
-    rightSpeed = int(forwardPwm - (avgAngle / maxExpectedAngle) * forwardPwm)
+    leftSpeed = int(forwardPwm + correction)
+    rightSpeed = int(forwardPwm - correction)
 
     if isRearCamera:
         leftSpeed, rightSpeed = -rightSpeed, -leftSpeed

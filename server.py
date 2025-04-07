@@ -154,8 +154,8 @@ def maybeSendSerialCmds(hoeCmd: str, driveCmd: str, lostContext: bool):
         return
     if hoeCmd:
         arduinoSerial.send_command(hoeCmd)
-    # if driveCmd:
-    #     arduinoSerial.send_command(driveCmd)
+    if driveCmd:
+        arduinoSerial.send_command(driveCmd)
 
 # Mount the "static" folder for serving JS and other static files
 app.mount("/static", StaticFiles(directory="static"), name="static")

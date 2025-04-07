@@ -1,1 +1,12 @@
-{"minH": 56, "maxH": 139, "minS": 50, "maxS": 238, "minV": 0, "maxV": 62, "closeKernel": 3, "openKernel": 4, "distThreshold": 10}
+{
+    "hLowerPercentile": 0,
+    "hUpperPercentile": 24,
+    "sLowerPercentile": 81,
+    "sUpperPercentile": 100,
+    "vLowerPercentile": 0,
+    "vUpperPercentile": 100,
+    "closeKernel": 3,
+    "openKernel": 4,
+    "distThreshold": 20,
+    "swapCameras": false
+}
