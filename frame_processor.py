@@ -1,9 +1,12 @@
 import base64
+from typing import List
 import cv2
 import numpy as np
 from scipy.spatial import KDTree
 from pydantic import BaseModel
 import random
+
+from cv_settings import CvSettings
 
 NUM_COLORS = 20
 DEBUG_COLORS = [
@@ -83,55 +86,68 @@ def merge_nearby_islands(islands, mask, distance_threshold):
 
     return list(merged_archipelagos.values())
 
-class Line:
-    start = None
-    end = None
-    midpoint = None
-    r2 = None
+class Point:
+    def __init__(self, x: int, y: int):
+        self.x = x
+        self.y = y
 
-    def __init__(self, start, end, r2=None):
+class Line:
+    def __init__(self, start: Point, end: Point, r2: float = None):
         self.start = start
         self.end = end
-        self.midpoint = (int((start[0] + end[0]) / 2), int((start[1] + end[1]) / 2))
+        self.midpoint = Point(
+            int((start.x + end.x) / 2),
+            int((start.y + end.y) / 2)
+        )
         self.r2 = r2
 
-    def inverted(self):
+    def invert(self) -> None:
         """
-        Returns the inverted line.
+        Inverts the line by swapping start and end points. Mutates the line.
         """
-        return Line(self.end, self.start)
+        self.start, self.end = self.end, self.start
     
     def scaled(self, scale_factor: float):
         """
         Returns the scaled line, still centered at the same midpoint.
         """
-        start = (int(self.midpoint[0] - (self.midpoint[0] - self.start[0]) * scale_factor),
-                 int(self.midpoint[1] - (self.midpoint[1] - self.start[1]) * scale_factor))
-        end = (int(self.midpoint[0] - (self.midpoint[0] - self.end[0]) * scale_factor),
-               int(self.midpoint[1] - (self.midpoint[1] - self.end[1]) * scale_factor))
+        start = Point(
+            int(self.midpoint.x - (self.midpoint.x - self.start.x) * scale_factor),
+            int(self.midpoint.y - (self.midpoint.y - self.start.y) * scale_factor)
+        )
+        end = Point(
+            int(self.midpoint.x - (self.midpoint.x - self.end.x) * scale_factor),
+            int(self.midpoint.y - (self.midpoint.y - self.end.y) * scale_factor)
+        )
         return Line(start, end)
     
     def angle(self):
         """
         Returns the angle of the line in degrees.
         """
-        delta_x = self.end[0] - self.start[0]
-        delta_y = self.end[1] - self.start[1]
+        delta_x = self.end.x - self.start.x
+        delta_y = self.end.y - self.start.y
         return np.degrees(np.arctan2(delta_y, delta_x))
     
     def length(self):
         """
         Returns the length of the line.
         """
-        return np.hypot(self.end[0] - self.start[0], self.end[1] - self.start[1])
+        return np.hypot(self.end.x - self.start.x, self.end.y - self.start.y)
 
     @classmethod
     def avg_line(cls, line1: 'Line', line2: 'Line'):
         """
         Returns the average line between two lines.
         """
-        start = (int((line1.start[0] + line2.start[0]) / 2), int((line1.start[1] + line2.start[1]) / 2))
-        end = (int((line1.end[0] + line2.end[0]) / 2), int((line1.end[1] + line2.end[1]) / 2))
+        start = Point(
+            int((line1.start.x + line2.start.x) / 2),
+            int((line1.start.y + line2.start.y) / 2)
+        )
+        end = Point(
+            int((line1.end.x + line2.end.x) / 2),
+            int((line1.end.y + line2.end.y) / 2)
+        )
         return Line(start, end)
 
 def get_best_fit_line(pixels):
@@ -148,30 +164,26 @@ def get_best_fit_line(pixels):
     r2 = 1 - (res / np.sum((y - np.mean(y)) ** 2))
 
     # Calculate the start and end points of the line
-    start = (int(m * min(y) + b), int(min(y)))
-    end = (int(m * max(y) + b), int(max(y)))
+    start = Point(int(m * min(y) + b), int(min(y)))
+    end = Point(int(m * max(y) + b), int(max(y)))
+
+    # Enfore that the start point is always the bottom of the line (closer to the camera)
+    if start.y < end.y:
+        start, end = end, start
 
     return Line(start, end, r2)
 
-class CvSettings(BaseModel):
-    hLowerPercentile: int
-    hUpperPercentile: int
-    sLowerPercentile: int
-    sUpperPercentile: int
-    vLowerPercentile: int
-    vUpperPercentile: int
-    closeKernel: int
-    openKernel: int
-    distThreshold: int
-    swapCameras: bool
+class CvOutputLines(BaseModel):
+    leftLine: Line
+    rightLine: Line
+    centerLine: Line
 
 class CvOutputs(BaseModel):
-    combinedFrameJpgTxt: str
-    driveCmd: str
-    hoeCmd: str
+    combinedJpgTxt: str
+    outputLines: CvOutputLines
     lostContext: bool
 
-def process_frame(image, settings: CvSettings, isRearCamera: bool = False) -> CvOutputs:
+def process_frame(image: np.ndarray, settings: CvSettings) -> CvOutputs:
     """
     Processes a single frame of the video stream."
     """
@@ -235,9 +247,8 @@ def process_frame(image, settings: CvSettings, isRearCamera: bool = False) -> Cv
 
     # Get the best fit line for each archipelago
     mask_with_lines = cv2.cvtColor(mask_copy, cv2.COLOR_GRAY2BGR)
-    steering_arrow = cv2.cvtColor(np.zeros_like(mask_copy), cv2.COLOR_GRAY2BGR)
     image_with_lines = image.copy()
-    lines = []
+    lines: List[Line] = []
     for pixels in archipelagos:
         if len(pixels) < 100: # Skip small archipelagos
             continue
@@ -271,7 +282,7 @@ def process_frame(image, settings: CvSettings, isRearCamera: bool = False) -> Cv
         cv2.line(image_with_lines, line.start, line.end, color, 2)
 
     # Add a grey/white line at the image vertical centerline
-    centerLine = Line((width // 2, 0), (width // 2, height))
+    centerLine = Line((width // 2, height), (width // 2, 0))
     cv2.line(mask_with_lines, centerLine.start, centerLine.end, (128, 128, 128), 2)
     cv2.line(image_with_lines, centerLine.start, centerLine.end, (255, 255, 255), 2)
 
@@ -296,31 +307,25 @@ def process_frame(image, settings: CvSettings, isRearCamera: bool = False) -> Cv
     jpg_as_text = base64.b64encode(buffer).decode('utf-8')
     jpg_as_text = f"data:image/jpeg;base64,{jpg_as_text}"
 
-    hoeCmd = get_hoe_cmd(
-        lines[left_line_index] if left_line_index >= 0 else None,
-        lines[right_line_index] if right_line_index >= 0 else None,
-        centerLine,
-        isRearCamera,
-    )
-    driveCmd = get_drive_cmd(
-        lines[left_line_index] if left_line_index >= 0 else None,
-        lines[right_line_index] if right_line_index >= 0 else None,
-        0.2,
-        isRearCamera,
-    )
     lostContext = left_line_index < 0 or right_line_index < 0
 
+    outputLines = CvOutputLines(
+        leftLine=lines[left_line_index] if left_line_index >= 0 else None,
+        rightLine=lines[right_line_index] if right_line_index >= 0 else None,
+        centerLine=centerLine,
+    )
+
     outputs = CvOutputs(
-        combinedFrameJpgTxt=jpg_as_text,
-        driveCmd=driveCmd,
-        hoeCmd=hoeCmd,
+        combinedJpgTxt=jpg_as_text,
+        outputLines=outputLines,
         lostContext=lostContext,
     )
     return outputs
 
-def dont_process_frame(image):
+def dont_process_frame(image: np.ndarray) -> CvOutputs:
     """
     Pads the image with placeholders to create a 4x3 grid.
+    This allows the unprocessed images to still be displayed in the web interface.
     """
     height, width = image.shape[:2]
     placeholder = np.zeros((height, width, 3), dtype=np.uint8)
@@ -333,78 +338,11 @@ def dont_process_frame(image):
     jpg_as_text = base64.b64encode(buffer).decode('utf-8')
     jpg_as_text = f"data:image/jpeg;base64,{jpg_as_text}"
     return CvOutputs(
-        combinedFrameJpgTxt=jpg_as_text,
-        driveCmd="n/a",
-        hoeCmd="n/a",
+        combinedJpgTxt=jpg_as_text,
+        outputLines=CvOutputLines(
+            leftLine=None,
+            rightLine=None,
+            centerLine=None,
+        ),
         lostContext=True,
     )
-
-def get_hoe_cmd(leftLine: Line, rightLine: Line, centerLine: Line, isRearCamera: bool) -> str:
-    """
-    Returns the hoe command based on the left and right lines. The goal is to keep the hoe aligned with the centerline.
-    """
-    if leftLine is None or rightLine is None or centerLine is None:
-        return "hoe 0 0"
-
-    avgMidpointX = (leftLine.midpoint[0] + rightLine.midpoint[0]) // 2
-    delta = avgMidpointX - centerLine.midpoint[0]
-
-    # Deadzone
-    if abs(delta) < 5:
-        return "hoe 0 0"
-
-    maxExpectedDelta = 50
-
-    # stepDelay should range from maxDelay to minDelay uS, with maxDelay representing a small adjustment
-    # and minDelay representing a large adjustment. 0 represents no adjustment.
-    maxDelay = 20000
-    minDelay = 5000
-    stepDelayMag = int(maxDelay - (abs(delta) / maxExpectedDelta) * (maxDelay - minDelay))
-    stepDelay = delta / abs(delta) * stepDelayMag if delta != 0 else 0
-
-    if isRearCamera:
-        stepDelay = -stepDelay
-
-    stepDelay = str(stepDelay)
-    return f"hoe {stepDelay} 0"
-
-def get_drive_cmd(leftLine: Line, rightLine: Line, forwardSpeed: float, isRearCamera: bool) -> str:
-    """
-    Returns the drive command based on the left and right lines. The goal is to keep robot heading in the direction of the centerline.
-    """
-    if leftLine is None or rightLine is None:
-        return "drive 0 0"
-    
-    forwardSpeed = clamp(forwardSpeed, 0, 1)
-
-    avgAngle = (leftLine.angle() + rightLine.angle() - 180) / 2
-    avgAngle = clamp(avgAngle, -45, 45)    
-    
-    maxExpectedAngle = 45
-    forwardPwm = 255 * forwardSpeed
-    pwmLimit = 255
-    forward_correction = (abs(avgAngle) / maxExpectedAngle) * forwardPwm * 2
-    reverse_correction = (abs(avgAngle) / maxExpectedAngle) * forwardPwm * -1
-    leftCorrection = forward_correction if avgAngle > 0 else reverse_correction
-    rightCorrection = reverse_correction if avgAngle > 0 else forward_correction
-
-    # left and right tank drive speeds should range from -255 to 255, with 0 representing zero velocity.
-    leftSpeed = int(forwardPwm + leftCorrection)
-    rightSpeed = int(forwardPwm + rightCorrection)
-
-    if isRearCamera:
-        leftSpeed, rightSpeed = -rightSpeed, -leftSpeed
-
-    leftSpeed = clamp(leftSpeed, -pwmLimit, pwmLimit)
-    rightSpeed = clamp(rightSpeed, -pwmLimit, pwmLimit)
-
-    leftSpeed = str(leftSpeed)
-    rightSpeed = str(rightSpeed)
-
-    return f"drive {leftSpeed} {rightSpeed}"
-    
-def clamp(value, min_value, max_value):
-    """
-    Clamps a value between a minimum and maximum value.
-    """
-    return max(min(value, max_value), min_value)
