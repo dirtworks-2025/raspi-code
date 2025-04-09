@@ -1,5 +1,5 @@
 import base64
-from typing import List
+from typing import List, Optional
 import cv2
 import numpy as np
 from scipy.spatial import KDTree
@@ -86,20 +86,26 @@ def merge_nearby_islands(islands, mask, distance_threshold):
 
     return list(merged_archipelagos.values())
 
-class Point:
-    def __init__(self, x: int, y: int):
-        self.x = x
-        self.y = y
+class Point(BaseModel):
+    x: int
+    y: int
 
-class Line:
-    def __init__(self, start: Point, end: Point, r2: float = None):
-        self.start = start
-        self.end = end
-        self.midpoint = Point(
-            int((start.x + end.x) / 2),
-            int((start.y + end.y) / 2)
+    def to_tuple(self):
+        return (self.x, self.y)
+
+class Line(BaseModel):
+    start: Point
+    end: Point
+    r2: float = None
+
+    def midpoint(self) -> Point:
+        """
+        Returns the midpoint of the line.
+        """
+        return Point(
+            x=int((self.start.x + self.end.x) / 2),
+            y=int((self.start.y + self.end.y) / 2)
         )
-        self.r2 = r2
 
     def invert(self) -> None:
         """
@@ -112,14 +118,14 @@ class Line:
         Returns the scaled line, still centered at the same midpoint.
         """
         start = Point(
-            int(self.midpoint.x - (self.midpoint.x - self.start.x) * scale_factor),
-            int(self.midpoint.y - (self.midpoint.y - self.start.y) * scale_factor)
+            x=int(self.midpoint().x - (self.midpoint().x - self.start.x) * scale_factor),
+            y=int(self.midpoint().y - (self.midpoint().y - self.start.y) * scale_factor)
         )
         end = Point(
-            int(self.midpoint.x - (self.midpoint.x - self.end.x) * scale_factor),
-            int(self.midpoint.y - (self.midpoint.y - self.end.y) * scale_factor)
+            x=int(self.midpoint().x - (self.midpoint().x - self.end.x) * scale_factor),
+            y=int(self.midpoint().y - (self.midpoint().y - self.end.y) * scale_factor)
         )
-        return Line(start, end)
+        return Line(start=start, end=end)
     
     def angle(self):
         """
@@ -141,14 +147,14 @@ class Line:
         Returns the average line between two lines.
         """
         start = Point(
-            int((line1.start.x + line2.start.x) / 2),
-            int((line1.start.y + line2.start.y) / 2)
+            x=int((line1.start.x + line2.start.x) / 2),
+            y=int((line1.start.y + line2.start.y) / 2)
         )
         end = Point(
-            int((line1.end.x + line2.end.x) / 2),
-            int((line1.end.y + line2.end.y) / 2)
+            x=int((line1.end.x + line2.end.x) / 2),
+            y=int((line1.end.y + line2.end.y) / 2)
         )
-        return Line(start, end)
+        return Line(start=start, end=end)
 
 def get_best_fit_line(pixels):
     """
@@ -164,19 +170,19 @@ def get_best_fit_line(pixels):
     r2 = 1 - (res / np.sum((y - np.mean(y)) ** 2))
 
     # Calculate the start and end points of the line
-    start = Point(int(m * min(y) + b), int(min(y)))
-    end = Point(int(m * max(y) + b), int(max(y)))
+    start = Point(x=int(m * min(y) + b), y=int(min(y)))
+    end = Point(x=int(m * max(y) + b), y=int(max(y)))
 
     # Enfore that the start point is always the bottom of the line (closer to the camera)
     if start.y < end.y:
         start, end = end, start
 
-    return Line(start, end, r2)
+    return Line(start=start, end=end, r2=r2)
 
 class CvOutputLines(BaseModel):
-    leftLine: Line
-    rightLine: Line
-    centerLine: Line
+    leftLine: Optional[Line]
+    rightLine: Optional[Line]
+    centerLine: Optional[Line]
 
 class CvOutputs(BaseModel):
     combinedJpgTxt: str
@@ -253,7 +259,7 @@ def process_frame(image: np.ndarray, settings: CvSettings) -> CvOutputs:
         if len(pixels) < 100: # Skip small archipelagos
             continue
         line = get_best_fit_line(pixels)
-        if abs(line.angle() - 90) > 45:  # Filter out lines too far from vertical
+        if abs(line.angle() + 90) > 45:  # Filter out lines too far from vertical
             continue
         if line.length() < 70:  # Filter out lines that are too short
             continue
@@ -262,14 +268,14 @@ def process_frame(image: np.ndarray, settings: CvSettings) -> CvOutputs:
         lines.append(line)
 
     # Sort lines by x-coordinate of midpoint
-    lines.sort(key=lambda line: line.midpoint[0])
+    lines.sort(key=lambda line: line.midpoint().x)
 
     # Determines the indices of the two lines closest to the image centerline on each side
     right_line_index = -1
     left_line_index = -1
 
     for idx, line in enumerate(lines):
-        if line.midpoint[0] > width / 2:
+        if line.midpoint().x > width / 2:
             right_line_index = idx
             left_line_index = idx - 1
             break
@@ -278,13 +284,16 @@ def process_frame(image: np.ndarray, settings: CvSettings) -> CvOutputs:
     # Two lines closest to image centerline are colored green
     for idx, line in enumerate(lines):
         color = (0, 255, 0) if idx == right_line_index or idx == left_line_index else (0, 0, 255)
-        cv2.line(mask_with_lines, line.start, line.end, color, 2)
-        cv2.line(image_with_lines, line.start, line.end, color, 2)
+        cv2.line(mask_with_lines, line.start.to_tuple(), line.end.to_tuple(), color, 2)
+        cv2.line(image_with_lines, line.start.to_tuple(), line.end.to_tuple(), color, 2)
 
     # Add a grey/white line at the image vertical centerline
-    centerLine = Line((width // 2, height), (width // 2, 0))
-    cv2.line(mask_with_lines, centerLine.start, centerLine.end, (128, 128, 128), 2)
-    cv2.line(image_with_lines, centerLine.start, centerLine.end, (255, 255, 255), 2)
+    centerLine = Line(
+        start=Point(x=int(width / 2), y=height),
+        end=Point(x=int(width / 2), y=0),
+    )
+    cv2.line(mask_with_lines, centerLine.start.to_tuple(), centerLine.end.to_tuple(), (128, 128, 128), 2)
+    cv2.line(image_with_lines, centerLine.start.to_tuple(), centerLine.end.to_tuple(), (255, 255, 255), 2)
 
     # Create a 4x3 grid of images
     placeholder = np.zeros((height, width, 3), dtype=np.uint8)
