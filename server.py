@@ -1,3 +1,4 @@
+import asyncio
 from fastapi import FastAPI, WebSocket
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -43,7 +44,7 @@ def set_settings(settings: CvSettings):
 @app.post("/change_direction")
 def change_direction():
     global drivingController
-    with drivingController.lock:
+    with drivingController.drivingStateLock:
         drivingController.drivingState.currentDrivingDirection = not drivingController.drivingState.currentDrivingDirection
 
 def get_temperature():
@@ -57,21 +58,25 @@ def get_temperature():
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
+    print("WebSocket connection established.")
     while True:
         try:
-            # Wait for the driving controller to finish processing the current event
-            drivingController.finishedProcessingEvent.clear()
-            drivingController.finishedProcessingEvent.wait()
+            # Wait for the driving controller to finish processing
+            drivingController.finishedProcessing.clear()
+            await asyncio.get_running_loop().run_in_executor(None, drivingController.finishedProcessing.wait)
 
-            with drivingController.lock:
+            with drivingController.drivingStateLock:
+                currentStage = drivingController.drivingState.currentStage.name
+                overallDrivingDirection = "FORWARD" if drivingController.drivingState.overallDrivingDirection else "BACKWARD"
+            with drivingController.outputStateLock:
                 latestFrontCombinedImg = drivingController.outputState.frontCombinedImg
                 latestRearCombinedImg = drivingController.outputState.rearCombinedImg
                 latestDriveCommand = drivingController.outputState.latestDriveCommand
-                serialLogHistory = drivingController.serialLogHistory.copy()
-                currentStage = drivingController.drivingState.currentStage
-                overallDrivingDirection = "FORWARD" if drivingController.drivingState.overallDrivingDirection else "BACKWARD"
                 frontLostContext = drivingController.outputState.frontLostContext
                 rearLostContext = drivingController.outputState.rearLostContext
+            with drivingController.serialLogHistoryLock:
+                serialLogHistory = drivingController.serialLogHistory.copy()
+
             temperature = get_temperature()
             
             jsonData = {
