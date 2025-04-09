@@ -59,7 +59,9 @@ class DrivingController:
     def advanceStage(self):
         with self.lock:
             self.currentStage = (self.currentStage + 1) % 6
-            self.lastStageChange = time.time()
+            if self.currentStage == 0:
+                self.drivingState.overallDrivingDirection = not self.drivingState.overallDrivingDirection
+            self.drivingState.lastStageChange = time.time()
 
     def handleArduinoSerialLog(self, message: str):
         print(message)
@@ -145,7 +147,7 @@ class DrivingController:
 
             if not lostContext:
                 with self.lock:
-                    drivingState.lastHadContext = time.time()
+                    self.drivingState.lastHadContext = time.time()
 
             # Update the output state with the processed frames and drive command
             with self.lock:
@@ -179,8 +181,10 @@ class DrivingController:
                 self.finishedProcessingEvent.set()
                 return
 
-            # Handle driving stages   
-            isLost = time.time() - drivingState.lastHadContext > 1.5
+            # Handle driving stages
+            with self.lock:   
+                isLost = time.time() - self.drivingState.lastHadContext > 1.5
+            
             if drivingState.currentStage == DrivingStage.DRIVING_NORMAL and not isLost:
                 self.sendDriveCommand(driveCmd)
             elif drivingState.currentStage == DrivingStage.DRIVING_NORMAL and isLost:
@@ -192,9 +196,6 @@ class DrivingController:
 
             self.finishedProcessingEvent.set()
             time.sleep(0.1)
-
-            
-            
 
 def getDriveCmd(
         cvOutputLines: CvOutputLines,
