@@ -50,6 +50,7 @@ class ArduinoSerial:
         if self.ser and self.ser.is_open:
             try:
                 self.ser.write(cmd.encode('utf-8') + b'\n')
+                self.log(f"[Send] {cmd.strip()}")
             except serial.SerialException as e:
                 self.log(f"[Write Error] {e}")
 

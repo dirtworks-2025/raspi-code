@@ -1,13 +1,9 @@
-import time
 from fastapi import FastAPI, WebSocket
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from fastapi.requests import Request
 from fastapi.middleware.cors import CORSMiddleware
-import asyncio
-import threading
 from driving_controller import DrivingController
-from frame_processor import process_frame, dont_process_frame
 import subprocess
 from cv_settings import CvSettings, currentSettingsState, currentSettingsStateLock
 
@@ -63,11 +59,18 @@ async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     while True:
         try:
+            # Wait for the driving controller to finish processing the current event
+            drivingController.finishedProcessingEvent.clear()
+            drivingController.finishedProcessingEvent.wait()
+
             with drivingController.lock:
                 latestFrontCombinedImg = drivingController.outputState.frontCombinedImg
                 latestRearCombinedImg = drivingController.outputState.rearCombinedImg
                 latestDriveCommand = drivingController.outputState.latestDriveCommand
                 serialLogHistory = drivingController.serialLogHistory.copy()
+                currentStage = drivingController.drivingState.currentStage
+                frontLostContext = drivingController.outputState.frontLostContext
+                rearLostContext = drivingController.outputState.rearLostContext
             temperature = get_temperature()
             
             jsonData = {
@@ -76,11 +79,12 @@ async def websocket_endpoint(websocket: WebSocket):
                 "temperature": temperature,
                 "serialLogHistory": serialLogHistory,
                 "latestDriveCommand": latestDriveCommand,
+                "currentStage": currentStage,
+                "frontLostContext": frontLostContext,
+                "rearLostContext": rearLostContext,
             }
 
             await websocket.send_json(jsonData)
-
-            await asyncio.sleep(0.1)
         except Exception as e:
             print(f"WebSocket error: {e}")
             break

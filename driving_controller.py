@@ -1,4 +1,6 @@
+from enum import IntEnum
 import threading
+import time
 from frame_processor import CvOutputLines, CvOutputs, Line, dont_process_frame, process_frame
 from serial_comms import ArduinoSerial
 from webcams import Webcams
@@ -12,7 +14,7 @@ class CameraDirection:
     FRONT = True
     REAR = False
 
-class DrivingStage:
+class DrivingStage(IntEnum):
     LOWERING_HOE = 0
     DRIVING_NORMAL = 1
     DRIVING_FROM_REARVIEW = 2
@@ -22,12 +24,16 @@ class DrivingStage:
 
 class DrivingState:
     def __init__(self):
-        self.drivingSpeed = 0.2 # This is the speed at which the robot will drive forward, between 0 and 1
+        # These are not intended to be mutated by controller
+        self.drivingSpeed = 0.2 # This is the speed at which the robot will drive, between 0 and 1
+        self.oscillating = False # This is a flag that indicates whether the robot is oscillating or not
+
+        # These are intended to be mutated by controller
         self.overallDrivingDirection = DrivingDirection.FORWARD # This is the overall direction the robot is traveling along the row, ignoring any oscillations
         self.currentDrivingDirection = DrivingDirection.FORWARD # This is the current direction the robot is traveling in, which may be different from the overall direction if the robot is oscillating
-        self.oscillating = False
         self.currentStage = DrivingStage.LOWERING_HOE
-        self.lastStageChange = 0
+        self.lastStageChange = 0 # This is the last time the stage was changed, which will be used to control periodic oscillation
+        self.lastHadContext = 0 # This is the last time the robot had context, which is used to determine if the robot is lost or not
 
 class OutputState:
     def __init__(self):
@@ -40,6 +46,7 @@ class OutputState:
 class DrivingController:
     def __init__(self):
         self.lock = threading.Lock()
+        self.finishedProcessingEvent = threading.Event()
 
         self.drivingState = DrivingState()
         self.outputState = OutputState()
@@ -52,6 +59,7 @@ class DrivingController:
     def advanceStage(self):
         with self.lock:
             self.currentStage = (self.currentStage + 1) % 6
+            self.lastStageChange = time.time()
 
     def handleArduinoSerialLog(self, message: str):
         print(message)
@@ -59,6 +67,32 @@ class DrivingController:
             self.serialLogHistory.append(message)
             if len(self.serialLogHistory) > 100:
                 self.serialLogHistory.pop(0)
+
+    def raiseHoe(self):
+        with self.lock:
+            self.arduinoSerial.send_command("drive 0 0")
+            time.sleep(0.1)
+            self.arduinoSerial.send_command("hoe up")
+            time.sleep(2)
+    
+    def lowerHoe(self):
+        with self.lock:
+            self.arduinoSerial.send_command("hoe 0 0")
+            time.sleep(0.1)
+            self.arduinoSerial.send_command("hoe down")
+            time.sleep(2)
+
+    def moveHoeRight(self):
+        with self.lock:
+            self.arduinoSerial.send_command("hoe 10000 0")
+            time.sleep(0.1)
+
+    def sendDriveCommand(self, driveCmd: str):
+        if driveCmd is None:
+            return
+        with self.lock:
+            self.arduinoSerial.send_command(driveCmd)
+
     
     def controllerLoop(self):
         webcams = Webcams()
@@ -81,11 +115,15 @@ class DrivingController:
 
             # Process the frames to get the lines, combined images, and drive commands
             driveCmd: str = None
+            lostContext: bool = False
             frontFrameOutput: CvOutputs = None
             rearFrameOutput: CvOutputs = None
             
             if frontFrame is not None and cameraToProcess == CameraDirection.FRONT:
                 frontFrameOutput = process_frame(frontFrame)
+                lostContext = frontFrameOutput.lostContext
+                with self.lock:
+                    self.outputState.frontLostContext = lostContext
                 driveCmd = getDriveCmd(
                     cvOutputLines=frontFrameOutput.outputLines,
                     drivingState=drivingState,
@@ -95,6 +133,9 @@ class DrivingController:
             
             if rearFrame is not None and cameraToProcess == CameraDirection.REAR:
                 rearFrameOutput = process_frame(rearFrame)
+                lostContext = rearFrameOutput.lostContext
+                with self.lock:
+                    self.outputState.rearLostContext = lostContext
                 driveCmd = getDriveCmd(
                     cvOutputLines=rearFrameOutput.outputLines,
                     drivingState=drivingState,
@@ -102,18 +143,58 @@ class DrivingController:
             elif rearFrame is not None and cameraToProcess == CameraDirection.FRONT:
                 rearFrameOutput = dont_process_frame(rearFrame)
 
+            if not lostContext:
+                with self.lock:
+                    drivingState.lastHadContext = time.time()
+
             # Update the output state with the processed frames and drive command
             with self.lock:
                 self.outputState.latestDriveCommand = driveCmd
                 self.outputState.frontCombinedImg = frontFrameOutput.combinedJpgTxt if frontFrameOutput else None
                 self.outputState.rearCombinedImg = rearFrameOutput.combinedJpgTxt if rearFrameOutput else None
-                self.outputState.frontLostContext = frontFrameOutput.lostContext if frontFrameOutput else False
-                self.outputState.rearLostContext = rearFrameOutput.lostContext if rearFrameOutput else False
 
-            # Maybe send the drive command to the Arduino
-            if driveCmd is not None:
-                with self.lock:
-                    self.arduinoSerial.send_command(driveCmd)
+            # Handle non-driving stages
+            if drivingState.currentStage == DrivingStage.LOWERING_HOE:
+                self.lowerHoe()
+                self.advanceStage()
+                self.finishedProcessingEvent.set()
+                return
+            if drivingState.currentStage == DrivingStage.RAISING_HOE:
+                self.raiseHoe()
+                self.advanceStage()
+                self.finishedProcessingEvent.set()
+                return
+            if drivingState.currentStage == DrivingStage.LEAVING_CURRENT_ROW:
+                if lostContext:
+                    self.advanceStage()
+                else:
+                    self.moveHoeRight()
+                self.finishedProcessingEvent.set()
+                return
+            if drivingState.currentStage == DrivingStage.SEARCHING_FOR_NEXT_ROW:
+                if lostContext:
+                    self.moveHoeRight()
+                else:
+                    self.advanceStage()
+                self.finishedProcessingEvent.set()
+                return
+
+            # Handle driving stages   
+            isLost = time.time() - drivingState.lastHadContext > 1.5
+            if drivingState.currentStage == DrivingStage.DRIVING_NORMAL and not isLost:
+                self.sendDriveCommand(driveCmd)
+            elif drivingState.currentStage == DrivingStage.DRIVING_NORMAL and isLost:
+                self.advanceStage()
+            elif drivingState.currentStage == DrivingStage.DRIVING_FROM_REARVIEW and not isLost:
+                self.sendDriveCommand(driveCmd)
+            elif drivingState.currentStage == DrivingStage.DRIVING_FROM_REARVIEW and isLost:
+                self.advanceStage()
+
+            self.finishedProcessingEvent.set()
+            time.sleep(0.1)
+
+            
+            
 
 def getDriveCmd(
         cvOutputLines: CvOutputLines,
