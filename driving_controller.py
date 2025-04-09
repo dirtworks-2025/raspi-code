@@ -15,12 +15,13 @@ class CameraDirection:
     REAR = False
 
 class DrivingStage(IntEnum):
-    LOWERING_HOE = 0
-    DRIVING_NORMAL = 1
-    DRIVING_FROM_REARVIEW = 2
-    RAISING_HOE = 3
-    LEAVING_CURRENT_ROW = 4
-    SEARCHING_FOR_NEXT_ROW = 5
+    CENTERING_HOE =            0
+    LOWERING_HOE =             1
+    DRIVING_NORMAL =           2
+    DRIVING_FROM_REARVIEW =    3
+    RAISING_HOE =              4
+    LEAVING_CURRENT_ROW =      5
+    SEARCHING_FOR_NEXT_ROW =   6
 
     @classmethod
     def next(cls, current):
@@ -125,6 +126,7 @@ class DrivingController:
 
             # Process the frames to get the lines, combined images, and drive commands
             driveCmd: str = None
+            hoeCmd: str = None
             lostContext: bool = False
             frontFrameOutput: CvOutputs = None
             rearFrameOutput: CvOutputs = None
@@ -138,6 +140,10 @@ class DrivingController:
                     cvOutputLines=frontFrameOutput.outputLines,
                     drivingState=drivingState,
                 )
+                hoeCmd = get_hoe_cmd(
+                    cvOutputLines=frontFrameOutput.outputLines,
+                    drivingState=drivingState,
+                )
             elif frontFrame is not None and cameraToProcess == CameraDirection.REAR:
                 frontFrameOutput = dont_process_frame(frontFrame)
             
@@ -147,6 +153,10 @@ class DrivingController:
                 with self.outputStateLock:
                     self.outputState.rearLostContext = lostContext
                 driveCmd = getDriveCmd(
+                    cvOutputLines=rearFrameOutput.outputLines,
+                    drivingState=drivingState,
+                )
+                hoeCmd = get_hoe_cmd(
                     cvOutputLines=rearFrameOutput.outputLines,
                     drivingState=drivingState,
                 )
@@ -186,6 +196,13 @@ class DrivingController:
                     self.moveHoeRight()
                 else:
                     self.advanceStage()
+                self.endLoop()
+                continue
+            if drivingState.currentStage == DrivingStage.CENTERING_HOE:
+                if hoeCmd == "hoe 0 0":
+                    self.advanceStage()
+                else:
+                    self.arduinoSerial.send_command(hoeCmd)
                 self.endLoop()
                 continue
 
@@ -288,3 +305,41 @@ def clamp(value, min_value, max_value):
     Clamps a value between a minimum and maximum value.
     """
     return max(min(value, max_value), min_value)
+
+def get_hoe_cmd(
+        cvOutputLines: CvOutputLines,
+        drivingState: DrivingState,
+    ) -> str:
+    """
+    Returns the hoe command based on the left and right lines. The goal is to keep the hoe aligned with the centerline.
+    """
+    # Unpack inputs
+    leftLine = cvOutputLines.leftLine
+    rightLine = cvOutputLines.rightLine
+    centerLine = cvOutputLines.centerLine
+    currentDrivingDirection = drivingState.currentDrivingDirection
+
+    if leftLine is None or rightLine is None or centerLine is None:
+        return "hoe 0 0"
+
+    avgMidpointX = (leftLine.midpoint().x + rightLine.midpoint().x) // 2
+    delta = avgMidpointX - centerLine.midpoint().x
+
+    # Deadzone
+    if abs(delta) < 5:
+        return "hoe 0 0"
+
+    maxExpectedDelta = 50
+
+    # stepDelay should range from maxDelay to minDelay uS, with maxDelay representing a small adjustment
+    # and minDelay representing a large adjustment. 0 represents no adjustment.
+    maxDelay = 20000
+    minDelay = 5000
+    stepDelayMag = int(maxDelay - (abs(delta) / maxExpectedDelta) * (maxDelay - minDelay))
+    stepDelay = delta / abs(delta) * stepDelayMag if delta != 0 else 0
+
+    if currentDrivingDirection == DrivingDirection.BACKWARD:
+        stepDelay = -stepDelay
+
+    stepDelay = str(stepDelay)
+    return f"hoe {stepDelay} 0"
