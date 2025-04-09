@@ -3,16 +3,14 @@ const controlsContainer = document.getElementById("controls");
 const frontCameraElement = document.getElementById("frontCamera");
 const rearCameraElement = document.getElementById("rearCamera");
 
-const frontDriveCmdElement = document.getElementById("frontDriveCmd");
-const frontHoeCmdElement = document.getElementById("frontHoeCmd");
+const overallDrivingDirectionElement = document.getElementById("overallDrivingDirection");
+const currentStageElement = document.getElementById("currentStage");
+
+const latestDriveCommandElement = document.getElementById("latestDriveCommand");
 const frontLostContextElement = document.getElementById("frontLostContext");
-const rearDriveCmdElement = document.getElementById("rearDriveCmd");
-const rearHoeCmdElement = document.getElementById("rearHoeCmd");
 const rearLostContextElement = document.getElementById("rearLostContext");
 
 const logHistoryElement = document.getElementById("logHistory");
-
-const drivingDirectionElement = document.getElementById("drivingDirection");
 
 const sliders = [
   { id: "hLowerPercentile", label: "Hue - Lower Percentile", min: 0, max: 100 },
@@ -110,25 +108,11 @@ socket.addEventListener("message", (event) => {
   if (data.temperature) {
     temperatureElement.innerText = data.temperature;
   }
-  if (data.front) {
-    frontCameraElement.src = data.front.combinedFrameJpgTxt;
-    frontDriveCmdElement.innerText = data.front.driveCmd;
-    frontHoeCmdElement.innerText = data.front.hoeCmd;
-    if (data.front.lostContext) {
-      frontLostContextElement.innerText = "Lost Context";
-    } else {
-      frontLostContextElement.innerText = "";
-    }
+  if (data.frontImg) {
+    frontCameraElement.src = data.frontImg;
   }
-  if (data.rear) {
-    rearCameraElement.src = data.rear.combinedFrameJpgTxt;
-    rearDriveCmdElement.innerText = data.rear.driveCmd;
-    rearHoeCmdElement.innerText = data.rear.hoeCmd;
-    if (data.rear.lostContext) {
-      rearLostContextElement.innerText = "Lost Context";
-    } else {
-      rearLostContextElement.innerText = "";
-    }
+  if (data.rearImg) {
+    rearCameraElement.src = data.rearImg;
   }
   if (data.serialLogHistory) {
     logHistoryElement.innerHTML = ""; // Clear previous log entries
@@ -139,9 +123,12 @@ socket.addEventListener("message", (event) => {
     }
     logHistoryElement.scrollTop = logHistoryElement.scrollHeight; // Scroll to the bottom
   }
-  if (data.drivingDirection) {
-    drivingDirectionElement.innerText = data.drivingDirection;
-  }
+  overallDrivingDirectionElement.innerText = data.overallDrivingDirection;
+  currentStageElement.innerText = data.currentStage;
+
+  latestDriveCommandElement.innerText = data.latestDriveCommand;
+  frontLostContextElement.innerText = data.frontLostContext ? "Front Lost Context" : "";
+  rearLostContextElement.innerText = data.rearLostContext ? "Rear Lost Context" : "";
 });
 
 window.addEventListener("load", () => {

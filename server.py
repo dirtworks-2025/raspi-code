@@ -69,6 +69,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 latestDriveCommand = drivingController.outputState.latestDriveCommand
                 serialLogHistory = drivingController.serialLogHistory.copy()
                 currentStage = drivingController.drivingState.currentStage
+                overallDrivingDirection = "FORWARD" if drivingController.drivingState.overallDrivingDirection else "BACKWARD"
                 frontLostContext = drivingController.outputState.frontLostContext
                 rearLostContext = drivingController.outputState.rearLostContext
             temperature = get_temperature()
@@ -80,6 +81,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 "serialLogHistory": serialLogHistory,
                 "latestDriveCommand": latestDriveCommand,
                 "currentStage": currentStage,
+                "overallDrivingDirection": overallDrivingDirection,
                 "frontLostContext": frontLostContext,
                 "rearLostContext": rearLostContext,
             }

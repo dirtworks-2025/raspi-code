@@ -17,20 +17,18 @@
         Temperature: <span id="temperature">Loading...</span> °C
       </h3>
       <div>
-        <h4>Driving Direction: </h4>
-        <button id="drivingDirection">Loading...</button>
+        <h4>Direction: </h4>
+        <button id="overallDrivingDirection">Loading...</button>
+      </div>
+      <div>
+        <h4>Stage: </h4>
+        <button id="currentStage">Loading...</button>
       </div>
     </div>
     <div style="margin-right: 20px;">
-      <h4>Front Commands</h4>
-      <div id="frontDriveCmd"></div>
-      <div id="frontHoeCmd"></div>
+      <h4>Latest Drive Command</h4>
+      <div id="latestDriveCommand"></div>
       <div id="frontLostContext" style="color: red;"></div>
-    </div>
-    <div style="margin-right: 20px;">
-      <h4>Rear Commands</h4>
-      <div id="rearDriveCmd"></div>
-      <div id="rearHoeCmd"></div>
       <div id="rearLostContext" style="color: red;"></div>
     </div>
     <div id="logHistory" style="height: 300px; overflow: scroll;"></div>
