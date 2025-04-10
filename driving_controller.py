@@ -35,6 +35,9 @@ class DrivingStage(IntEnum):
 
 class DrivingState:
     def __init__(self):
+        # This is meant to be mutated upon receiving messages from the arduino
+        self.isAutoMode = False # This is a flag that indicates whether the robot is in auto mode or not
+
         # These are not intended to be mutated by controller
         self.drivingSpeed = 0.2 # This is the speed at which the robot will drive, between 0 and 1
         self.oscillating = False # This is a flag that indicates whether the robot is oscillating or not
@@ -94,6 +97,15 @@ class DrivingController:
 
     def handleArduinoSerialLog(self, message: str):
         print(message)
+
+        # Only start the controller loop if the robot is in auto mode
+        if "mode 0" in message:
+            with self.drivingStateLock:
+                self.drivingState.isAutoMode = True
+        elif "mode 1" in message or "mode 2" in message:
+            with self.drivingStateLock:
+                self.drivingState.isAutoMode = False
+
         with self.serialLogHistoryLock:
             self.serialLogHistory.append(message)
             if len(self.serialLogHistory) > 100:
@@ -197,6 +209,11 @@ class DrivingController:
                 self.outputState.latestHoeCommand = hoeCmd
                 self.outputState.frontCombinedImg = frontFrameOutput.combinedJpgTxt if frontFrameOutput else None
                 self.outputState.rearCombinedImg = rearFrameOutput.combinedJpgTxt if rearFrameOutput else None
+
+            # Do nothing if the robot is not in auto mode
+            if not drivingState.isAutoMode:
+                time.sleep(0.1)
+                continue
 
             # Check if the robot is lost based on the time since it last had context
             # and the time since the last stage change
