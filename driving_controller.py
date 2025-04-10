@@ -31,7 +31,7 @@ class DrivingStage(IntEnum):
     CENTERING_HOE =            0
     LOWERING_HOE =             1
     DRIVING_NORMAL =           2
-    DRIVING_BLIND =           3
+    DRIVING_BLIND =           3 #continue driving with last driving direction
     RAISING_HOE =              4
     FINISHED_ROW =             5
 
@@ -94,6 +94,7 @@ class DrivingController:
             self.drivingState.rcControlMode = RcControlMode.AUTO
             print("Starting auto mode")
 
+    # go through the drive stages for auto
     def advanceStage(self):
         with self.drivingStateLock:
             self.drivingState.currentStage = DrivingStage.next(self.drivingState.currentStage)
@@ -121,7 +122,7 @@ class DrivingController:
     def raiseHoe(self):
         self.arduinoSerial.send_command("drive 0 0")
         time.sleep(STD_CMD_DELAY_SECONDS)
-        self.arduinoSerial.send_command("hoe -60")
+        self.arduinoSerial.send_command("hoe -60") # would need to change if hoe limit switch changes
         time.sleep(HOE_UP_SECONDS)
     
     def lowerHoe(self):
@@ -166,7 +167,7 @@ class DrivingController:
                     cvOutputLines=frontFrameOutput.outputLines,
                     drivingState=drivingState,
                 )
-                gantryCmd = get_gantry_cmd(
+                gantryCmd = getGantryCmd(
                     cvOutputLines=frontFrameOutput.outputLines,
                     drivingState=drivingState,
                 )
@@ -180,7 +181,7 @@ class DrivingController:
                     cvOutputLines=rearFrameOutput.outputLines,
                     drivingState=drivingState,
                 )
-                gantryCmd = get_gantry_cmd(
+                gantryCmd = getGantryCmd(
                     cvOutputLines=rearFrameOutput.outputLines,
                     drivingState=drivingState,
                 )
@@ -244,8 +245,10 @@ class DrivingController:
                 continue
 
             # Handle driving stages
+            # Right now only doing drive steering, no hoe commands
             if drivingState.currentStage == DrivingStage.DRIVING_NORMAL and keepDrivingNormal:
                 self.sendDriveCommand(driveCmd)
+                # could add sending a hoe command after a small delay
             elif drivingState.currentStage == DrivingStage.DRIVING_NORMAL and not keepDrivingNormal:
                 self.advanceStage()
             elif drivingState.currentStage == DrivingStage.DRIVING_BLIND and keepDrivingBlind:
@@ -253,6 +256,7 @@ class DrivingController:
             elif drivingState.currentStage == DrivingStage.DRIVING_BLIND and not keepDrivingBlind:
                 self.advanceStage()
 
+# based on the end of the line, see as far as possible
 def getDriveCmd(
         cvOutputLines: CvOutputLines,
         drivingState: DrivingState,
@@ -322,7 +326,7 @@ def clamp(value, min_value, max_value):
     """
     return max(min(value, max_value), min_value)
 
-def get_gantry_cmd(
+def getGantryCmd(
         cvOutputLines: CvOutputLines,
         drivingState: DrivingState,
     ) -> str:
