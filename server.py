@@ -62,12 +62,13 @@ async def websocket_endpoint(websocket: WebSocket):
     while True:
         try:
             # Wait for the driving controller to finish processing
-            drivingController.finishedProcessing.clear()
-            await asyncio.get_running_loop().run_in_executor(None, drivingController.finishedProcessing.wait)
+            drivingController.readyForWebsocket.clear()
+            await asyncio.get_running_loop().run_in_executor(None, drivingController.readyForWebsocket.wait)
 
             with drivingController.drivingStateLock:
                 currentStage = drivingController.drivingState.currentStage.name
                 drivingDirection = "FORWARD" if drivingController.drivingState.drivingDirection else "BACKWARD"
+                rcControlMode = drivingController.drivingState.rcControlMode.name
             with drivingController.outputStateLock:
                 latestDriveCommand = drivingController.outputState.latestDriveCommand
                 latestGantryCommand = drivingController.outputState.latestGantryCommand
@@ -88,6 +89,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 "latestGantryCommand": latestGantryCommand,
                 "currentStage": currentStage,
                 "drivingDirection": drivingDirection,
+                "rcControlMode": rcControlMode,
             }
 
             await websocket.send_json(jsonData)

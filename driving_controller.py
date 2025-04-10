@@ -6,6 +6,7 @@ from serial_comms import ArduinoSerial
 from webcams import Webcams
 from cv_settings import currentSettingsState, currentSettingsStateLock
 
+CONTEXT_TIMEOUT_SECONDS = 1.0
 DRIVE_BLIND_SECONDS = 2.0
 HOE_UP_SECONDS = 2.0
 HOE_DOWN_SECONDS = 2.0
@@ -20,6 +21,11 @@ class DrivingDirection:
 class CameraDirection:
     FRONT = True
     REAR = False
+
+class RcControlMode(IntEnum):
+    AUTO = 0
+    MANUAL = 1
+    STOP = 2
 
 class DrivingStage(IntEnum):
     CENTERING_HOE =            0
@@ -38,7 +44,7 @@ class DrivingStage(IntEnum):
 
 class DrivingState:
     def __init__(self):
-        self.isAutoMode = False # toggled upon mode-change signal from Arduino
+        self.rcControlMode = RcControlMode.MANUAL
         self.drivingDirection = DrivingDirection.FORWARD
         self.currentStage = DrivingStage.CENTERING_HOE
         self.lastStageChange = 0
@@ -57,7 +63,7 @@ class OutputState:
     
 class DrivingController:
     def __init__(self):
-        self.finishedProcessing = threading.Event()
+        self.readyForWebsocket = threading.Event()
 
         self.drivingState = DrivingState()
         self.drivingStateLock = threading.Lock()
@@ -75,8 +81,6 @@ class DrivingController:
             self.drivingState = DrivingState()
         with self.outputStateLock:
             self.outputState = OutputState()
-        with self.serialLogHistoryLock:
-            self.serialLogHistory = []
         print("Reset driving controller state")
 
     def startAutoMode(self, serialMsg: str):
@@ -87,7 +91,7 @@ class DrivingController:
             self.drivingState.drivingDirection = DrivingDirection.BACKWARD
             print("Setting direction to BACKWARD")
         with self.drivingStateLock:
-            self.drivingState.isAutoMode = True
+            self.drivingState.rcControlMode = RcControlMode.AUTO
             print("Starting auto mode")
 
     def advanceStage(self):
@@ -102,8 +106,12 @@ class DrivingController:
         # Only start the controller loop if the robot is in auto mode
         if "mode 0" in message:
             self.startAutoMode(message) # pass message along to set the direction
-        elif "mode 1" in message or "mode 2" in message:
+        elif "mode 1" in message:
             self.reset()
+            self.drivingState.rcControlMode = RcControlMode.MANUAL
+        elif "mode 2" in message:
+            self.reset()
+            self.drivingState.rcControlMode = RcControlMode.STOP
 
         with self.serialLogHistoryLock:
             self.serialLogHistory.append(message)
@@ -195,8 +203,11 @@ class DrivingController:
                 self.outputState.frontCombinedImg = frontFrameOutput.combinedJpgTxt if frontFrameOutput else None
                 self.outputState.rearCombinedImg = rearFrameOutput.combinedJpgTxt if rearFrameOutput else None
 
+            # Update websocket with the latest images and commands
+            self.readyForWebsocket.set()
+
             # Do nothing if the robot is not in auto mode
-            if not drivingState.isAutoMode:
+            if drivingState.rcControlMode != RcControlMode.AUTO:
                 time.sleep(0.1)
                 continue
 
@@ -208,19 +219,21 @@ class DrivingController:
             # Check if the robot is lost based on the time since it last had context
             # and the time since the last stage change
             with self.drivingStateLock:
+                timeSinceLastContext = time.time() - drivingState.lastHadContext
+                keepDrivingNormal = timeSinceLastContext < CONTEXT_TIMEOUT_SECONDS
                 timeSinceStageChange = time.time() - self.drivingState.lastStageChange
                 keepDrivingBlind = timeSinceStageChange < DRIVE_BLIND_SECONDS
+
+            print(timeSinceStageChange, keepDrivingBlind)
 
             # Handle non-driving stages
             if drivingState.currentStage == DrivingStage.LOWERING_HOE:
                 self.lowerHoe()
                 self.advanceStage()
-                self.finishedProcessing.set()
                 continue
             if drivingState.currentStage == DrivingStage.RAISING_HOE:
                 self.raiseHoe()
                 self.advanceStage()
-                self.finishedProcessing.set()
                 continue
             if drivingState.currentStage == DrivingStage.CENTERING_HOE:
                 hoeIsCentered = gantryCmd is not None and gantryCmd == "gantry 0" and not lostContext
@@ -228,16 +241,17 @@ class DrivingController:
                     self.advanceStage()
                 elif gantryCmd is not None:
                     self.arduinoSerial.send_command(gantryCmd)
-                self.finishedProcessing.set()
                 continue
 
             # Handle driving stages
-            if drivingState.currentStage == DrivingStage.DRIVING_NORMAL and keepDrivingBlind:
+            if drivingState.currentStage == DrivingStage.DRIVING_NORMAL and keepDrivingNormal:
                 self.sendDriveCommand(driveCmd)
-            elif drivingState.currentStage == DrivingStage.DRIVING_NORMAL and not keepDrivingBlind:
+            elif drivingState.currentStage == DrivingStage.DRIVING_NORMAL and not keepDrivingNormal:
                 self.advanceStage()
-
-            self.finishedProcessing.set()
+            elif drivingState.currentStage == DrivingStage.DRIVING_BLIND and keepDrivingBlind:
+                self.sendDriveCommand(driveCmd)
+            elif drivingState.currentStage == DrivingStage.DRIVING_BLIND and not keepDrivingBlind:
+                self.advanceStage()
 
 def getDriveCmd(
         cvOutputLines: CvOutputLines,
@@ -265,7 +279,7 @@ def getDriveCmd(
     
     forwardSpeed = clamp(forwardSpeed, 0, 1)
     
-    minDeltaX = 5 # sets deadzone
+    minDeltaX = 2 # sets deadzone
     maxDeltaX = 100 # the maximum expected deltaX value, used to scale the steering correction
 
     # Use farside of avgLine to steer
