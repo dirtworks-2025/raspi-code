@@ -47,7 +47,7 @@ class DrivingState:
 class OutputState:
     def __init__(self):
         self.latestDriveCommand = None
-        self.latestHoeCommand = None
+        self.latestGantryCommand = None
 
         self.frontCombinedImg = None
         self.rearCombinedImg = None
@@ -79,7 +79,13 @@ class DrivingController:
             self.serialLogHistory = []
         print("Reset driving controller state")
 
-    def startAutoMode(self):
+    def startAutoMode(self, serialMsg: str):
+        if "FORWARD" in serialMsg:
+            self.drivingState.drivingDirection = DrivingDirection.FORWARD
+            print("Setting direction to FORWARD")
+        elif "BACKWARD" in serialMsg:
+            self.drivingState.drivingDirection = DrivingDirection.BACKWARD
+            print("Setting direction to BACKWARD")
         with self.drivingStateLock:
             self.drivingState.isAutoMode = True
             print("Starting auto mode")
@@ -95,7 +101,7 @@ class DrivingController:
 
         # Only start the controller loop if the robot is in auto mode
         if "mode 0" in message:
-            self.startAutoMode()
+            self.startAutoMode(message) # pass message along to set the direction
         elif "mode 1" in message or "mode 2" in message:
             self.reset()
 
@@ -107,13 +113,13 @@ class DrivingController:
     def raiseHoe(self):
         self.arduinoSerial.send_command("drive 0 0")
         time.sleep(STD_CMD_DELAY_SECONDS)
-        self.arduinoSerial.send_command("hoe up")
+        self.arduinoSerial.send_command("hoe -60")
         time.sleep(HOE_UP_SECONDS)
     
     def lowerHoe(self):
-        self.arduinoSerial.send_command("hoe 0 0")
+        self.arduinoSerial.send_command("gantry 0")
         time.sleep(STD_CMD_DELAY_SECONDS)
-        self.arduinoSerial.send_command("hoe down")
+        self.arduinoSerial.send_command("hoe 0")
         time.sleep(HOE_DOWN_SECONDS)
 
     def sendDriveCommand(self, driveCmd: str):
@@ -140,7 +146,7 @@ class DrivingController:
 
             # Process the frames to get the lines, combined images, and drive commands
             driveCmd: str = None
-            hoeCmd: str = None
+            gantryCmd: str = None
             lostContext: bool = False
             frontFrameOutput: CvOutputs = None
             rearFrameOutput: CvOutputs = None
@@ -152,7 +158,7 @@ class DrivingController:
                     cvOutputLines=frontFrameOutput.outputLines,
                     drivingState=drivingState,
                 )
-                hoeCmd = get_hoe_cmd(
+                gantryCmd = get_gantry_cmd(
                     cvOutputLines=frontFrameOutput.outputLines,
                     drivingState=drivingState,
                 )
@@ -166,7 +172,7 @@ class DrivingController:
                     cvOutputLines=rearFrameOutput.outputLines,
                     drivingState=drivingState,
                 )
-                hoeCmd = get_hoe_cmd(
+                gantryCmd = get_gantry_cmd(
                     cvOutputLines=rearFrameOutput.outputLines,
                     drivingState=drivingState,
                 )
@@ -185,7 +191,7 @@ class DrivingController:
                 else:
                     driveCmd = self.outputState.latestDriveCommand
 
-                self.outputState.latestHoeCommand = hoeCmd
+                self.outputState.latestGantryCommand = gantryCmd
                 self.outputState.frontCombinedImg = frontFrameOutput.combinedJpgTxt if frontFrameOutput else None
                 self.outputState.rearCombinedImg = rearFrameOutput.combinedJpgTxt if rearFrameOutput else None
 
@@ -217,11 +223,11 @@ class DrivingController:
                 self.finishedProcessing.set()
                 continue
             if drivingState.currentStage == DrivingStage.CENTERING_HOE:
-                hoeIsCentered = hoeCmd is not None and hoeCmd == "hoe 0 0" and not lostContext
+                hoeIsCentered = gantryCmd is not None and gantryCmd == "gantry 0" and not lostContext
                 if hoeIsCentered:
                     self.advanceStage()
-                elif hoeCmd is not None:
-                    self.arduinoSerial.send_command(hoeCmd)
+                elif gantryCmd is not None:
+                    self.arduinoSerial.send_command(gantryCmd)
                 self.finishedProcessing.set()
                 continue
 
@@ -302,7 +308,7 @@ def clamp(value, min_value, max_value):
     """
     return max(min(value, max_value), min_value)
 
-def get_hoe_cmd(
+def get_gantry_cmd(
         cvOutputLines: CvOutputLines,
         drivingState: DrivingState,
     ) -> str:
@@ -326,7 +332,7 @@ def get_hoe_cmd(
 
     # Deadzone
     if abs(deltaX) < minDeltaX:
-        return "hoe 0 0"
+        return "gantry 0"
 
     # stepDelay should range from maxDelay to minDelay uS, with maxDelay representing a small adjustment
     # and minDelay representing a large adjustment. 0 represents no adjustment.
@@ -339,4 +345,4 @@ def get_hoe_cmd(
         stepDelay = -stepDelay
 
     stepDelay = str(stepDelay)
-    return f"hoe {stepDelay} 0"
+    return f"gantry {stepDelay}"

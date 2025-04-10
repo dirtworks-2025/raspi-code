@@ -70,7 +70,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 drivingDirection = "FORWARD" if drivingController.drivingState.drivingDirection else "BACKWARD"
             with drivingController.outputStateLock:
                 latestDriveCommand = drivingController.outputState.latestDriveCommand
-                latestHoeCommand = drivingController.outputState.latestHoeCommand
+                latestGantryCommand = drivingController.outputState.latestGantryCommand
 
                 latestFrontCombinedImg = drivingController.outputState.frontCombinedImg
                 latestRearCombinedImg = drivingController.outputState.rearCombinedImg
@@ -85,7 +85,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 "temperature": temperature,
                 "serialLogHistory": serialLogHistory,
                 "latestDriveCommand": latestDriveCommand,
-                "latestHoeCommand": latestHoeCommand,
+                "latestGantryCommand": latestGantryCommand,
                 "currentStage": currentStage,
                 "drivingDirection": drivingDirection,
             }

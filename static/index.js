@@ -7,7 +7,7 @@ const drivingDirectionButton = document.getElementById("drivingDirection");
 const currentStageElement = document.getElementById("currentStage");
 
 const latestDriveCommandElement = document.getElementById("latestDriveCommand");
-const latestHoeCommandElement = document.getElementById("latestHoeCommand");
+const latestGantryCommandElement = document.getElementById("latestGantryCommand");
 
 const logHistoryElement = document.getElementById("logHistory");
 
@@ -132,7 +132,7 @@ socket.addEventListener("message", (event) => {
   currentStageElement.innerText = data.currentStage;
 
   latestDriveCommandElement.innerText = data.latestDriveCommand;
-  latestHoeCommandElement.innerText = data.latestHoeCommand;
+  latestGantryCommandElement.innerText = data.latestGantryCommand;
 });
 
 window.addEventListener("load", () => {
