@@ -45,13 +45,7 @@ def set_settings(settings: CvSettings):
 def change_direction():
     global drivingController
     with drivingController.drivingStateLock:
-        drivingController.drivingState.currentDrivingDirection = not drivingController.drivingState.currentDrivingDirection
-
-@app.post("/reset_auto_mode")
-def reset_auto_mode():
-    global drivingController
-    print("Resetting auto mode")
-    drivingController.reset()
+        drivingController.drivingState.drivingDirection = not drivingController.drivingState.drivingDirection
 
 def get_temperature():
     try:
@@ -73,16 +67,13 @@ async def websocket_endpoint(websocket: WebSocket):
 
             with drivingController.drivingStateLock:
                 currentStage = drivingController.drivingState.currentStage.name
-                overallDrivingDirection = "FORWARD" if drivingController.drivingState.overallDrivingDirection else "BACKWARD"
+                drivingDirection = "FORWARD" if drivingController.drivingState.drivingDirection else "BACKWARD"
             with drivingController.outputStateLock:
                 latestDriveCommand = drivingController.outputState.latestDriveCommand
                 latestHoeCommand = drivingController.outputState.latestHoeCommand
 
                 latestFrontCombinedImg = drivingController.outputState.frontCombinedImg
                 latestRearCombinedImg = drivingController.outputState.rearCombinedImg
-
-                frontLostContext = drivingController.outputState.frontLostContext
-                rearLostContext = drivingController.outputState.rearLostContext
             with drivingController.serialLogHistoryLock:
                 serialLogHistory = drivingController.serialLogHistory.copy()
 
@@ -96,9 +87,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 "latestDriveCommand": latestDriveCommand,
                 "latestHoeCommand": latestHoeCommand,
                 "currentStage": currentStage,
-                "overallDrivingDirection": overallDrivingDirection,
-                "frontLostContext": frontLostContext,
-                "rearLostContext": rearLostContext,
+                "drivingDirection": drivingDirection,
             }
 
             await websocket.send_json(jsonData)

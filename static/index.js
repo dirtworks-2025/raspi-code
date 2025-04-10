@@ -3,17 +3,14 @@ const controlsContainer = document.getElementById("controls");
 const frontCameraElement = document.getElementById("frontCamera");
 const rearCameraElement = document.getElementById("rearCamera");
 
-const overallDrivingDirectionElement = document.getElementById("overallDrivingDirection");
+const drivingDirectionButton = document.getElementById("drivingDirection");
 const currentStageElement = document.getElementById("currentStage");
 
 const latestDriveCommandElement = document.getElementById("latestDriveCommand");
 const latestHoeCommandElement = document.getElementById("latestHoeCommand");
-const frontLostContextElement = document.getElementById("frontLostContext");
-const rearLostContextElement = document.getElementById("rearLostContext");
 
 const logHistoryElement = document.getElementById("logHistory");
 
-const resetAutoModeButton = document.getElementById("resetAutoMode");
 
 const sliders = [
   { id: "hLowerPercentile", label: "Hue - Lower Percentile", min: 0, max: 100 },
@@ -126,27 +123,25 @@ socket.addEventListener("message", (event) => {
     }
     logHistoryElement.scrollTop = logHistoryElement.scrollHeight; // Scroll to the bottom
   }
-  overallDrivingDirectionElement.innerText = data.overallDrivingDirection;
-  if (data.overallDrivingDirection === "FORWARD") {
-    overallDrivingDirectionElement.style.color = "green";
+  drivingDirectionButton.innerText = data.drivingDirection;
+  if (data.drivingDirection === "FORWARD") {
+    drivingDirectionButton.style.color = "green";
   } else {
-    overallDrivingDirectionElement.style.color = "red";
+    drivingDirectionButton.style.color = "red";
   }
   currentStageElement.innerText = data.currentStage;
 
   latestDriveCommandElement.innerText = data.latestDriveCommand;
   latestHoeCommandElement.innerText = data.latestHoeCommand;
-  frontLostContextElement.innerText = data.frontLostContext ? "Front Lost Context" : "";
-  rearLostContextElement.innerText = data.rearLostContext ? "Rear Lost Context" : "";
 });
 
 window.addEventListener("load", () => {
   loadSettings();
 });
 
-resetAutoModeButton.addEventListener("click", () => {
-  console.log("Resetting auto mode...");
-  fetch("/reset_auto_mode", {
+drivingDirectionButton.addEventListener("click", () => {
+  console.log("Changing Direction...");
+  fetch("/change_direction", {
     method: "POST",
   });
 });
