@@ -5,6 +5,7 @@ const rearCameraElement = document.getElementById("rearCamera");
 
 const drivingDirectionButton = document.getElementById("drivingDirection");
 const currentStageElement = document.getElementById("currentStage");
+const rcControlModeElement = document.getElementById("rcControlMode");
 
 const latestDriveCommandElement = document.getElementById("latestDriveCommand");
 const latestGantryCommandElement = document.getElementById("latestGantryCommand");
@@ -133,6 +134,7 @@ socket.addEventListener("message", (event) => {
 
   latestDriveCommandElement.innerText = data.latestDriveCommand;
   latestGantryCommandElement.innerText = data.latestGantryCommand;
+  rcControlModeElement.innerText = data.rcControlMode;
 });
 
 window.addEventListener("load", () => {
