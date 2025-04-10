@@ -308,13 +308,13 @@ def getDriveCmd(
     # Handle rearview steering
     #
     # \      |  \ 
-    #  \     |   \     <-- original line
+    #  \     |   \     <-- original avg line
     #   \    |    \
     #   
     #   ^    |-----|
     #   |       ^
     # new line  |
-    #         deltaX
+    #         deltaXFromStartOf...
     if steeringFromRearview:
         robotBlindspot = 0.5 # Accounts for the distance between the field of view of the front and rear cameras
         correctionFactor = 2 + robotBlindspot # Using this to extend line to the opposite side of the robot to emmulate frontview steering
