@@ -1,12 +1,12 @@
 {
-    "hLowerPercentile": 0,
-    "hUpperPercentile": 24,
-    "sLowerPercentile": 81,
+    "hLowerPercentile": 5,
+    "hUpperPercentile": 40,
+    "sLowerPercentile": 80,
     "sUpperPercentile": 100,
     "vLowerPercentile": 0,
     "vUpperPercentile": 100,
     "closeKernel": 3,
     "openKernel": 4,
-    "distThreshold": 20,
+    "distThreshold": 10,
     "swapCameras": false
 }

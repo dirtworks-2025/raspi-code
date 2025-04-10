@@ -6,6 +6,10 @@ from serial_comms import ArduinoSerial
 from webcams import Webcams
 from cv_settings import currentSettingsState, currentSettingsStateLock
 
+TIME_UNTIL_LOST_SECONDS = 1.5
+DRIVE_FROM_REARVIEW_SECONDS = 4.0
+LEAVE_CURRENT_ROW_SECONDS = 3.0
+
 class DrivingDirection:
     FORWARD = True
     BACKWARD = False
@@ -38,15 +42,18 @@ class DrivingState:
         # These are intended to be mutated by controller
         self.overallDrivingDirection = DrivingDirection.FORWARD # This is the overall direction the robot is traveling along the row, ignoring any oscillations
         self.currentDrivingDirection = DrivingDirection.FORWARD # This is the current direction the robot is traveling in, which may be different from the overall direction if the robot is oscillating
-        self.currentStage = DrivingStage.LOWERING_HOE
+        self.currentStage = DrivingStage.CENTERING_HOE
         self.lastStageChange = 0 # This is the last time the stage was changed, which will be used to control periodic oscillation
         self.lastHadContext = 0 # This is the last time the robot had context, which is used to determine if the robot is lost or not
 
 class OutputState:
     def __init__(self):
         self.latestDriveCommand = None
+        self.latestHoeCommand = None
+
         self.frontCombinedImg = None
         self.rearCombinedImg = None
+
         self.frontLostContext = False
         self.rearLostContext = False
     
@@ -65,12 +72,24 @@ class DrivingController:
 
         threading.Thread(target=self.controllerLoop, daemon=True).start()
 
+    def reset(self):
+        with self.drivingStateLock:
+            self.drivingState = DrivingState()
+        with self.outputStateLock:
+            self.outputState = OutputState()
+        with self.serialLogHistoryLock:
+            self.serialLogHistory = []
+        print("Resetting driving controller state")
+
     def advanceStage(self):
         with self.drivingStateLock:
             self.drivingState.currentStage = DrivingStage.next(self.drivingState.currentStage)
-            # Maybe switch directions
-            if self.drivingState.currentStage == DrivingStage.LOWERING_HOE:
+            print(f"Advancing to stage {self.drivingState.currentStage.name}")
+            # This describes the stage at which the robot changes direction
+            # Important to tell the robot which camera to pay attention to 
+            if self.drivingState.currentStage == DrivingStage.LEAVING_CURRENT_ROW:
                 self.drivingState.overallDrivingDirection = not self.drivingState.overallDrivingDirection
+                self.drivingState.currentDrivingDirection = self.drivingState.overallDrivingDirection
             self.drivingState.lastStageChange = time.time()
 
     def handleArduinoSerialLog(self, message: str):
@@ -169,9 +188,23 @@ class DrivingController:
 
             # Update the output state with the processed frames and drive command
             with self.outputStateLock:
-                self.outputState.latestDriveCommand = driveCmd
+                # If the drive command is None, use the last known command
+                if driveCmd is not None:
+                    self.outputState.latestDriveCommand = driveCmd
+                else:
+                    driveCmd = self.outputState.latestDriveCommand
+
+                self.outputState.latestHoeCommand = hoeCmd
                 self.outputState.frontCombinedImg = frontFrameOutput.combinedJpgTxt if frontFrameOutput else None
                 self.outputState.rearCombinedImg = rearFrameOutput.combinedJpgTxt if rearFrameOutput else None
+
+            # Check if the robot is lost based on the time since it last had context
+            # and the time since the last stage change
+            with self.drivingStateLock:   
+                isLost = time.time() - self.drivingState.lastHadContext > TIME_UNTIL_LOST_SECONDS
+                timeSinceStageChange = time.time() - self.drivingState.lastStageChange
+                keepDrivingFromRearview = timeSinceStageChange < DRIVE_FROM_REARVIEW_SECONDS
+                keedLeavingCurrentRow = timeSinceStageChange < LEAVE_CURRENT_ROW_SECONDS
 
             # Handle non-driving stages
             if drivingState.currentStage == DrivingStage.LOWERING_HOE:
@@ -185,10 +218,10 @@ class DrivingController:
                 self.endLoop()
                 continue
             if drivingState.currentStage == DrivingStage.LEAVING_CURRENT_ROW:
-                if lostContext:
-                    self.advanceStage()
-                else:
+                if keedLeavingCurrentRow:
                     self.moveHoeRight()
+                else:
+                    self.advanceStage()
                 self.endLoop()
                 continue
             if drivingState.currentStage == DrivingStage.SEARCHING_FOR_NEXT_ROW:
@@ -199,24 +232,21 @@ class DrivingController:
                 self.endLoop()
                 continue
             if drivingState.currentStage == DrivingStage.CENTERING_HOE:
-                if hoeCmd == "hoe 0 0":
+                if hoeCmd == "hoe 0 0" and not lostContext:
                     self.advanceStage()
-                else:
+                elif hoeCmd is not None:
                     self.arduinoSerial.send_command(hoeCmd)
                 self.endLoop()
                 continue
 
             # Handle driving stages
-            with self.drivingStateLock:   
-                isLost = time.time() - self.drivingState.lastHadContext > 1.5
-            
             if drivingState.currentStage == DrivingStage.DRIVING_NORMAL and not isLost:
                 self.sendDriveCommand(driveCmd)
             elif drivingState.currentStage == DrivingStage.DRIVING_NORMAL and isLost:
                 self.advanceStage()
-            elif drivingState.currentStage == DrivingStage.DRIVING_FROM_REARVIEW and not isLost:
+            elif drivingState.currentStage == DrivingStage.DRIVING_FROM_REARVIEW and keepDrivingFromRearview:
                 self.sendDriveCommand(driveCmd)
-            elif drivingState.currentStage == DrivingStage.DRIVING_FROM_REARVIEW and isLost:
+            elif drivingState.currentStage == DrivingStage.DRIVING_FROM_REARVIEW and not keepDrivingFromRearview:
                 self.advanceStage()
 
             self.endLoop()
@@ -240,13 +270,13 @@ def getDriveCmd(
     steeringFromRearview = drivingState.currentDrivingDirection == DrivingStage.DRIVING_FROM_REARVIEW
 
     if leftLine is None or rightLine is None:
-        return "drive 0 0"
+        return None
     
     forwardSpeed = clamp(forwardSpeed, 0, 1)
 
     avgLine = Line.avg_line(leftLine, rightLine)
     if avgLine is None:
-        return "drive 0 0"
+        return None
     
     minDeltaX = 5
     maxDeltaX = 100
@@ -271,7 +301,7 @@ def getDriveCmd(
     if steeringFromRearview:
         robotBlindspot = 0.5 # Accounts for the distance between the field of view of the front and rear cameras
         correctionFactor = 2 + robotBlindspot # Using this to extend line to the opposite side of the robot to emmulate frontview steering
-        deltaXFromStartOfAvgLineToStartOfCenterLine = avgLine.start.x - centerLine.start.x
+        deltaXFromStartOfAvgLineToStartOfCenterLine = centerLine.start.x - avgLine.start.x
         deltaX = deltaX + deltaXFromStartOfAvgLineToStartOfCenterLine * correctionFactor # Extend the line to the opposite side of the robot
         deltaX = deltaX / correctionFactor # Scale the deltaX back down to the original range
 
@@ -280,8 +310,12 @@ def getDriveCmd(
 
     pwmLimit = 255
     forwardPwm = pwmLimit * forwardSpeed
-    forward_correction = (abs(deltaX) / maxDeltaX) * forwardPwm * 2 # 2x correction for forward side (a way to steer more agressively withouy fully putting the brakes on on the other side)
-    reverse_correction = (abs(deltaX) / maxDeltaX) * forwardPwm * -1
+    if currentDrivingDirection == DrivingDirection.FORWARD:
+        forward_correction = (abs(deltaX) / maxDeltaX) * forwardPwm * 2 # 2x correction for forward side (a way to steer more agressively withouy fully putting the brakes on on the other side)
+        reverse_correction = (abs(deltaX) / maxDeltaX) * forwardPwm * -1
+    if currentDrivingDirection == DrivingDirection.BACKWARD:
+        forward_correction = (abs(deltaX) / maxDeltaX) * forwardPwm * 2.5 # seems to need more aggressive correction in reverse
+        reverse_correction = (abs(deltaX) / maxDeltaX) * forwardPwm * -1.5
     leftCorrection = forward_correction if deltaX > 0 else reverse_correction
     rightCorrection = reverse_correction if deltaX > 0 else forward_correction
 
@@ -320,7 +354,7 @@ def get_hoe_cmd(
     currentDrivingDirection = drivingState.currentDrivingDirection
 
     if leftLine is None or rightLine is None or centerLine is None:
-        return "hoe 0 0"
+        return None
 
     avgMidpointX = (leftLine.midpoint().x + rightLine.midpoint().x) // 2
     delta = avgMidpointX - centerLine.midpoint().x

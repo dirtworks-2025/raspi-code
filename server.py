@@ -47,6 +47,12 @@ def change_direction():
     with drivingController.drivingStateLock:
         drivingController.drivingState.currentDrivingDirection = not drivingController.drivingState.currentDrivingDirection
 
+@app.post("/reset_auto_mode")
+def reset_auto_mode():
+    global drivingController
+    print("Resetting auto mode")
+    drivingController.reset()
+
 def get_temperature():
     try:
         result = subprocess.run(["vcgencmd", "measure_temp"], capture_output=True, text=True)
@@ -69,9 +75,12 @@ async def websocket_endpoint(websocket: WebSocket):
                 currentStage = drivingController.drivingState.currentStage.name
                 overallDrivingDirection = "FORWARD" if drivingController.drivingState.overallDrivingDirection else "BACKWARD"
             with drivingController.outputStateLock:
+                latestDriveCommand = drivingController.outputState.latestDriveCommand
+                latestHoeCommand = drivingController.outputState.latestHoeCommand
+
                 latestFrontCombinedImg = drivingController.outputState.frontCombinedImg
                 latestRearCombinedImg = drivingController.outputState.rearCombinedImg
-                latestDriveCommand = drivingController.outputState.latestDriveCommand
+
                 frontLostContext = drivingController.outputState.frontLostContext
                 rearLostContext = drivingController.outputState.rearLostContext
             with drivingController.serialLogHistoryLock:
@@ -85,6 +94,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 "temperature": temperature,
                 "serialLogHistory": serialLogHistory,
                 "latestDriveCommand": latestDriveCommand,
+                "latestHoeCommand": latestHoeCommand,
                 "currentStage": currentStage,
                 "overallDrivingDirection": overallDrivingDirection,
                 "frontLostContext": frontLostContext,
@@ -93,5 +103,5 @@ async def websocket_endpoint(websocket: WebSocket):
 
             await websocket.send_json(jsonData)
         except Exception as e:
-            print(f"WebSocket error: {e}")
+            # print(f"WebSocket error: {e}")
             break
