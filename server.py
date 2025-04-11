@@ -47,6 +47,12 @@ def change_direction():
     with drivingController.drivingStateLock:
         drivingController.drivingState.drivingDirection = not drivingController.drivingState.drivingDirection
 
+@app.post("/toggle_hoe_use")
+def toggle_hoe_use():
+    global drivingController
+    with drivingController.drivingStateLock:
+        drivingController.drivingState.useHoe = not drivingController.drivingState.useHoe
+
 def get_temperature():
     try:
         result = subprocess.run(["vcgencmd", "measure_temp"], capture_output=True, text=True)
@@ -69,6 +75,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 currentStage = drivingController.drivingState.currentStage.name
                 drivingDirection = "FORWARD" if drivingController.drivingState.drivingDirection else "BACKWARD"
                 rcControlMode = drivingController.drivingState.rcControlMode.name
+                useHoe = drivingController.drivingState.useHoe
             with drivingController.outputStateLock:
                 latestDriveCommand = drivingController.outputState.latestDriveCommand
                 latestGantryCommand = drivingController.outputState.latestGantryCommand
@@ -90,6 +97,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 "currentStage": currentStage,
                 "drivingDirection": drivingDirection,
                 "rcControlMode": rcControlMode,
+                "useHoe": useHoe,
             }
 
             await websocket.send_json(jsonData)

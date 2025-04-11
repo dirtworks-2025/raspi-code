@@ -12,7 +12,7 @@ HOE_UP_SECONDS = 2.0
 HOE_DOWN_SECONDS = 2.0
 STD_CMD_DELAY_SECONDS = 0.1
 
-DRIVING_SPEED = 0.2 # This is the speed at which the robot will drive, between 0 and 1
+DRIVING_SPEED = 0.1 # This is the speed at which the robot will drive, between 0 and 1
 
 class DrivingDirection:
     FORWARD = True
@@ -29,15 +29,29 @@ class RcControlMode(IntEnum):
 
 class DrivingStage(IntEnum):
     CENTERING_HOE =            0
-    LOWERING_HOE =             1
-    DRIVING_NORMAL =           2
-    DRIVING_BLIND =           3
-    RAISING_HOE =              4
-    FINISHED_ROW =             5
+    STOP_CENTERING_HOE =       1
+    LOWERING_HOE =             2
+    DRIVING_NORMAL =           3
+    DRIVING_BLIND =            4
+    STOP_DRIVING =             5
+    RAISING_HOE =              6
+    FINISHED_ROW =             7
 
     @classmethod
     def next(cls, current):
         members = list(cls)
+        index = members.index(current)
+        newIndex = (index + 1) % len(members)
+        return members[newIndex]
+    
+    @classmethod
+    def nextWithoutHoe(cls, current):
+        excludedStages = [
+            cls.LOWERING_HOE,
+            cls.RAISING_HOE,
+        ]
+        members = list(cls)
+        members = [member for member in members if member not in excludedStages]
         index = members.index(current)
         newIndex = (index + 1) % len(members)
         return members[newIndex]
@@ -49,6 +63,7 @@ class DrivingState:
         self.currentStage = DrivingStage.CENTERING_HOE
         self.lastStageChange = 0
         self.lastHadContext = 0
+        self.useHoe = True
 
 class OutputState:
     def __init__(self):
@@ -78,7 +93,9 @@ class DrivingController:
 
     def reset(self):
         with self.drivingStateLock:
+            useHoe = self.drivingState.useHoe
             self.drivingState = DrivingState()
+            self.drivingState.useHoe = useHoe
         with self.outputStateLock:
             self.outputState = OutputState()
         print("Reset driving controller state")
@@ -96,7 +113,11 @@ class DrivingController:
 
     def advanceStage(self):
         with self.drivingStateLock:
-            self.drivingState.currentStage = DrivingStage.next(self.drivingState.currentStage)
+            if self.drivingState.useHoe:
+                self.drivingState.currentStage = DrivingStage.next(self.drivingState.currentStage)
+            else:
+                self.drivingState.currentStage = DrivingStage.nextWithoutHoe(self.drivingState.currentStage)
+            
             print(f"Advancing to stage {self.drivingState.currentStage.name}")
             self.drivingState.lastStageChange = time.time()
 
@@ -119,14 +140,10 @@ class DrivingController:
                 self.serialLogHistory.pop(0)
 
     def raiseHoe(self):
-        self.arduinoSerial.send_command("drive 0 0")
-        time.sleep(STD_CMD_DELAY_SECONDS)
-        self.arduinoSerial.send_command("hoe -60")
+        self.arduinoSerial.send_command("hoe home")
         time.sleep(HOE_UP_SECONDS)
     
     def lowerHoe(self):
-        self.arduinoSerial.send_command("gantry 0")
-        time.sleep(STD_CMD_DELAY_SECONDS)
         self.arduinoSerial.send_command("hoe 0")
         time.sleep(HOE_DOWN_SECONDS)
 
@@ -233,6 +250,14 @@ class DrivingController:
                 continue
             if drivingState.currentStage == DrivingStage.RAISING_HOE:
                 self.raiseHoe()
+                self.advanceStage()
+                continue
+            if drivingState.currentStage == DrivingStage.STOP_CENTERING_HOE:
+                self.arduinoSerial.send_command("gantry 0")
+                self.advanceStage()
+                continue
+            if drivingState.currentStage == DrivingStage.STOP_DRIVING:
+                self.arduinoSerial.send_command("drive 0 0")
                 self.advanceStage()
                 continue
             if drivingState.currentStage == DrivingStage.CENTERING_HOE:

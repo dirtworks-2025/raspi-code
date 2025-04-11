@@ -6,6 +6,7 @@ const rearCameraElement = document.getElementById("rearCamera");
 const drivingDirectionButton = document.getElementById("drivingDirection");
 const currentStageElement = document.getElementById("currentStage");
 const rcControlModeElement = document.getElementById("rcControlMode");
+const useHoeElement = document.getElementById("useHoe");
 
 const latestDriveCommandElement = document.getElementById("latestDriveCommand");
 const latestGantryCommandElement = document.getElementById("latestGantryCommand");
@@ -122,7 +123,7 @@ socket.addEventListener("message", (event) => {
       logEntryElement.innerText = logEntry;
       logHistoryElement.appendChild(logEntryElement);
     }
-    logHistoryElement.scrollTop = logHistoryElement.scrollHeight; // Scroll to the bottom
+    // logHistoryElement.scrollTop = logHistoryElement.scrollHeight; // Scroll to the bottom
   }
   drivingDirectionButton.innerText = data.drivingDirection;
   if (data.drivingDirection === "FORWARD") {
@@ -135,6 +136,7 @@ socket.addEventListener("message", (event) => {
   latestDriveCommandElement.innerText = data.latestDriveCommand;
   latestGantryCommandElement.innerText = data.latestGantryCommand;
   rcControlModeElement.innerText = data.rcControlMode;
+  useHoeElement.innerText = data.useHoe;
 });
 
 window.addEventListener("load", () => {
@@ -147,4 +149,11 @@ drivingDirectionButton.addEventListener("click", () => {
     method: "POST",
   });
 });
+
+useHoeElement.addEventListener("click", () => {
+  console.log("Toggling hoe use...")
+  fetch("/toggle_hoe_use", {
+    method: "POST",
+  })
+})
 
