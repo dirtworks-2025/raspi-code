@@ -196,26 +196,43 @@ def process_frame(image: np.ndarray, settings: CvSettings) -> CvOutputs:
     image = cv2.resize(image, (270, 180))
     height, width = image.shape[:2]
 
-    # Apply HSV filters
+    # Convert to HSV and split channels
     hsv = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
     h_channel, s_channel, v_channel = cv2.split(hsv)
 
-    minH = np.percentile(h_channel, settings.hLowerPercentile)
-    maxH = np.percentile(h_channel, settings.hUpperPercentile)
-    minS = np.percentile(s_channel, settings.sLowerPercentile)
-    maxS = np.percentile(s_channel, settings.sUpperPercentile)
-    minV = np.percentile(v_channel, settings.vLowerPercentile)
-    maxV = np.percentile(v_channel, settings.vUpperPercentile)
+    # Create ROI mask (lower half of the image)
+    roi_mask = np.zeros((height, width), dtype=np.uint8)
+    roi_mask[height // 2:, :] = 255  # Lower half
 
+    # Use ROI to mask each channel
+    roi_h = h_channel[roi_mask == 255]
+    roi_s = s_channel[roi_mask == 255]
+    roi_v = v_channel[roi_mask == 255]
+
+    # Compute percentiles on ROI only
+    minH = np.percentile(roi_h, settings.hLowerPercentile)
+    maxH = np.percentile(roi_h, settings.hUpperPercentile)
+    minS = np.percentile(roi_s, settings.sLowerPercentile)
+    maxS = np.percentile(roi_s, settings.sUpperPercentile)
+    minV = np.percentile(roi_v, settings.vLowerPercentile)
+    maxV = np.percentile(roi_v, settings.vUpperPercentile)
+
+    # Create masks based on thresholds
     hue_mask = cv2.inRange(h_channel, minH, maxH)
     sat_mask = cv2.inRange(s_channel, minS, maxS)
     val_mask = cv2.inRange(v_channel, minV, maxV)
 
-    combined_mask = cv2.bitwise_and(hue_mask, cv2.bitwise_and(sat_mask, val_mask))
+    # Overlay masks onto original channels for visualization
+    # Any pixel included in the respective mask should be painted green in the original channel
+    h_channel_colored = cv2.cvtColor(h_channel, cv2.COLOR_GRAY2BGR)
+    s_channel_colored = cv2.cvtColor(s_channel, cv2.COLOR_GRAY2BGR)
+    v_channel_colored = cv2.cvtColor(v_channel, cv2.COLOR_GRAY2BGR)
+    h_channel_colored[hue_mask > 0] = (0, 165, 255)
+    s_channel_colored[sat_mask > 0] = (0, 165, 255)
+    v_channel_colored[val_mask > 0] = (0, 165, 255)
 
-    # Region of interest (ROI) mask
-    roi_mask = np.zeros_like(combined_mask)
-    roi_mask[height // 2:, :] = 255  # Lower half of the image
+    # Combine masks and apply ROI again
+    combined_mask = cv2.bitwise_and(hue_mask, cv2.bitwise_and(sat_mask, val_mask))
     combined_mask = cv2.bitwise_and(combined_mask, roi_mask)
 
     # Morphological transformations to reduce noise
@@ -299,9 +316,9 @@ def process_frame(image: np.ndarray, settings: CvSettings) -> CvOutputs:
     placeholder = np.zeros((height, width, 3), dtype=np.uint8)
     first_row = np.hstack([
         image,
-        cv2.cvtColor(h_channel, cv2.COLOR_GRAY2BGR),
-        cv2.cvtColor(s_channel, cv2.COLOR_GRAY2BGR),
-        cv2.cvtColor(v_channel, cv2.COLOR_GRAY2BGR),
+        h_channel_colored,
+        s_channel_colored,
+        v_channel_colored,
     ])
     second_row = np.hstack([
         cv2.cvtColor(combined_mask, cv2.COLOR_GRAY2BGR),
