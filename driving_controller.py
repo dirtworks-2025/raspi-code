@@ -111,6 +111,7 @@ class DrivingController:
             self.drivingState.rcControlMode = RcControlMode.AUTO
             print("Starting auto mode")
 
+    # go through the drive stages for auto
     def advanceStage(self):
         with self.drivingStateLock:
             if self.drivingState.useHoe:
@@ -183,7 +184,7 @@ class DrivingController:
                     cvOutputLines=frontFrameOutput.outputLines,
                     drivingState=drivingState,
                 )
-                gantryCmd = get_gantry_cmd(
+                gantryCmd = getGantryCmd(
                     cvOutputLines=frontFrameOutput.outputLines,
                     drivingState=drivingState,
                 )
@@ -197,7 +198,7 @@ class DrivingController:
                     cvOutputLines=rearFrameOutput.outputLines,
                     drivingState=drivingState,
                 )
-                gantryCmd = get_gantry_cmd(
+                gantryCmd = getGantryCmd(
                     cvOutputLines=rearFrameOutput.outputLines,
                     drivingState=drivingState,
                 )
@@ -269,8 +270,10 @@ class DrivingController:
                 continue
 
             # Handle driving stages
+            # Right now only doing drive steering, no hoe commands
             if drivingState.currentStage == DrivingStage.DRIVING_NORMAL and keepDrivingNormal:
                 self.sendDriveCommand(driveCmd)
+                # could add sending a hoe command after a small delay
             elif drivingState.currentStage == DrivingStage.DRIVING_NORMAL and not keepDrivingNormal:
                 self.advanceStage()
             elif drivingState.currentStage == DrivingStage.DRIVING_BLIND and keepDrivingBlind:
@@ -278,6 +281,7 @@ class DrivingController:
             elif drivingState.currentStage == DrivingStage.DRIVING_BLIND and not keepDrivingBlind:
                 self.advanceStage()
 
+# based on the end of the line, see as far as possible
 def getDriveCmd(
         cvOutputLines: CvOutputLines,
         drivingState: DrivingState,
@@ -347,7 +351,7 @@ def clamp(value, min_value, max_value):
     """
     return max(min(value, max_value), min_value)
 
-def get_gantry_cmd(
+def getGantryCmd(
         cvOutputLines: CvOutputLines,
         drivingState: DrivingState,
     ) -> str:
