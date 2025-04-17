@@ -13,6 +13,8 @@ class CvSettings(BaseModel):
     closeKernel: int
     openKernel: int
     distThreshold: int
+    verticalDilationIterations: int
+    r2Threshold: int
     swapCameras: bool
 
 class CvSettingsState:

@@ -24,6 +24,8 @@ const sliders = [
   { id: "closeKernel", label: "Close Kernel Size", min: 0, max: 8 },
   { id: "openKernel", label: "Open Kernel Size", min: 0, max: 8 },
   { id: "distThreshold", label: "Distance Threshold", min: 0, max: 20 },
+  { id: "verticalDilationIterations", label: "Vertical Dilation Iterations", min: 0, max: 5},
+  { id: "r2Threshold", label: "R2 Threshold", min: 0, max: 100 },
 ];
 
 const checkboxes = [

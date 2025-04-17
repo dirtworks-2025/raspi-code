@@ -252,7 +252,7 @@ def process_frame(image: np.ndarray, settings: CvSettings) -> CvOutputs:
         [0, 0, 1, 0, 0],
         [0, 0, 1, 0, 0],
     ], dtype=np.uint8)
-    denoised_mask = cv2.dilate(denoised_mask, dilate_kernel, iterations=3)
+    denoised_mask = cv2.dilate(denoised_mask, dilate_kernel, iterations=settings.verticalDilationIterations)
 
     # Get the pixel islands
     mask_copy = denoised_mask.copy()
@@ -280,7 +280,7 @@ def process_frame(image: np.ndarray, settings: CvSettings) -> CvOutputs:
             continue
         if line.length() < 70:  # Filter out lines that are too short
             continue
-        if line.r2 < 0.90:  # Filter out lines with low R^2 value
+        if line.r2 < (settings.r2Threshold / 100):  # Filter out lines with low R^2 value
             continue
         lines.append(line)
 
