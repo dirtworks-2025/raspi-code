@@ -1,7 +1,7 @@
 from enum import IntEnum
 import threading
 import time
-from frame_processor import CvOutputLines, CvOutputs, Line, dont_process_frame, process_frame
+from frame_processor import CvOutputLines, CvOutputs, Line, dont_process_frame, process_frame, search_for_best_settings
 from serial_comms import ArduinoSerial
 from webcams import Webcams
 from cv_settings import currentSettingsState, currentSettingsStateLock
@@ -120,6 +120,12 @@ class DrivingController:
                 self.drivingState.currentStage = DrivingStage.nextWithoutHoe(self.drivingState.currentStage)
             
             print(f"Advancing to stage {self.drivingState.currentStage.name}")
+            self.drivingState.lastStageChange = time.time()
+    
+    def continueDrivingNormal(self):
+        with self.drivingStateLock:
+            self.drivingState.currentStage = DrivingStage.DRIVING_NORMAL
+            print("Regained context - Continuing driving normal")
             self.drivingState.lastStageChange = time.time()
 
     def handleArduinoSerialLog(self, message: str):
@@ -278,6 +284,16 @@ class DrivingController:
                 self.advanceStage()
             elif drivingState.currentStage == DrivingStage.DRIVING_BLIND and keepDrivingBlind:
                 self.sendDriveCommand(driveCmd)
+                frameToProcess = frontFrame if cameraToProcess == CameraDirection.FRONT else rearFrame
+                maybeNewSettings = search_for_best_settings(
+                    originalSettings=settings,
+                    image=frameToProcess,
+                )
+                if maybeNewSettings is not None:
+                    with currentSettingsStateLock:
+                        currentSettingsState.settings = maybeNewSettings
+                    print("Found new settings")
+                self.continueDrivingNormal()
             elif drivingState.currentStage == DrivingStage.DRIVING_BLIND and not keepDrivingBlind:
                 self.advanceStage()
 

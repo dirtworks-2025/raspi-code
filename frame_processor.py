@@ -1,5 +1,5 @@
 import base64
-from typing import List, Optional
+from typing import List, Literal, Optional
 import cv2
 import numpy as np
 from scipy.spatial import KDTree
@@ -372,3 +372,92 @@ def dont_process_frame(image: np.ndarray) -> CvOutputs:
         ),
         lostContext=True,
     )
+
+ChannelType = Literal['h', 's', 'v']
+
+def search_for_best_settings(originalSettings: CvSettings, image: np.ndarray) -> Optional[CvSettings]:
+    """
+    Searches for the correct settings by iterating through a range of values.
+    Returns the settings that yield the best results.
+    """
+    best_avg_r2 = 0
+    best_channel: Optional[ChannelType] = None
+    best_range = (0, 0)
+
+    # Step in each parameter by incerements of 5% with a bandwith of 15%
+    # Find the best ranges for hue, saturation, and value independently
+
+    increment = 5
+    bandwidth = 15
+    for hLowerPercentile in range(0, 100, increment):
+        for hUpperPercentile in range(hLowerPercentile + bandwidth, 100, increment):
+            if hUpperPercentile > 100:
+                break
+            settings = originalSettings.copy()
+            settings.hLowerPercentile = hLowerPercentile
+            settings.hUpperPercentile = hUpperPercentile
+            outputs = process_frame(image, settings)
+            if outputs.outputLines.leftLine and outputs.outputLines.rightLine:
+                avg_r2 = (outputs.outputLines.leftLine.r2 + outputs.outputLines.rightLine.r2) / 2
+                if avg_r2 > best_avg_r2:
+                    best_avg_r2 = avg_r2
+                    best_channel = 'h'
+                    best_range = (hLowerPercentile, hUpperPercentile)
+
+    for sLowerPercentile in range(0, 100, increment):
+        for sUpperPercentile in range(sLowerPercentile + bandwidth, 100, increment):
+            if sUpperPercentile > 100:
+                break
+            settings = originalSettings.copy()
+            settings.sLowerPercentile = sLowerPercentile
+            settings.sUpperPercentile = sUpperPercentile
+            outputs = process_frame(image, settings)
+            if outputs.outputLines.leftLine and outputs.outputLines.rightLine:
+                avg_r2 = (outputs.outputLines.leftLine.r2 + outputs.outputLines.rightLine.r2) / 2
+                if avg_r2 > best_avg_r2:
+                    best_avg_r2 = avg_r2
+                    best_channel = 's'
+                    best_range = (sLowerPercentile, sUpperPercentile)
+
+    for vLowerPercentile in range(0, 100, increment):
+        for vUpperPercentile in range(vLowerPercentile + bandwidth, 100, increment):
+            if vUpperPercentile > 100:
+                break
+            settings = originalSettings.copy()
+            settings.vLowerPercentile = vLowerPercentile
+            settings.vUpperPercentile = vUpperPercentile
+            outputs = process_frame(image, settings)
+            if outputs.outputLines.leftLine and outputs.outputLines.rightLine:
+                avg_r2 = (outputs.outputLines.leftLine.r2 + outputs.outputLines.rightLine.r2) / 2
+                if avg_r2 > best_avg_r2:
+                    best_avg_r2 = avg_r2
+                    best_channel = 'v'
+                    best_range = (vLowerPercentile, vUpperPercentile)
+
+    best_settings = originalSettings.copy()
+    if best_channel == 'h':
+        best_settings.hLowerPercentile = best_range[0]
+        best_settings.hUpperPercentile = best_range[1]
+        best_settings.sLowerPercentile = 0
+        best_settings.sUpperPercentile = 100
+        best_settings.vLowerPercentile = 0
+        best_settings.vUpperPercentile = 100
+    elif best_channel == 's':
+        best_settings.sLowerPercentile = best_range[0]
+        best_settings.sUpperPercentile = best_range[1]
+        best_settings.hLowerPercentile = 0
+        best_settings.hUpperPercentile = 100
+        best_settings.vLowerPercentile = 0
+        best_settings.vUpperPercentile = 100
+    elif best_channel == 'v':
+        best_settings.vLowerPercentile = best_range[0]
+        best_settings.vUpperPercentile = best_range[1]
+        best_settings.hLowerPercentile = 0
+        best_settings.hUpperPercentile = 100
+        best_settings.sLowerPercentile = 0
+        best_settings.sUpperPercentile = 100
+    else:
+        # No valid channel found, return original settings
+        return None
+
+    return best_settings
