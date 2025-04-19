@@ -284,16 +284,17 @@ class DrivingController:
                 self.advanceStage()
             elif drivingState.currentStage == DrivingStage.DRIVING_BLIND and keepDrivingBlind:
                 self.sendDriveCommand(driveCmd)
-                frameToProcess = frontFrame if cameraToProcess == CameraDirection.FRONT else rearFrame
-                maybeNewSettings = search_for_best_settings(
-                    originalSettings=settings,
-                    image=frameToProcess,
-                )
-                if maybeNewSettings is not None:
-                    with currentSettingsStateLock:
-                        currentSettingsState.settings = maybeNewSettings
-                    print("Found new settings")
-                self.continueDrivingNormal()
+                ## Uncomment this to experiment with settings refinement during driving blind stage
+                # frameToProcess = frontFrame if cameraToProcess == CameraDirection.FRONT else rearFrame
+                # maybeNewSettings = search_for_best_settings(
+                #     originalSettings=settings,
+                #     image=frameToProcess,
+                # )
+                # if maybeNewSettings is not None:
+                #     with currentSettingsStateLock:
+                #         currentSettingsState.settings = maybeNewSettings
+                #     print("Found new settings")
+                # self.continueDrivingNormal()
             elif drivingState.currentStage == DrivingStage.DRIVING_BLIND and not keepDrivingBlind:
                 self.advanceStage()
 
