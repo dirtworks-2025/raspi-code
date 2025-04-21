@@ -204,18 +204,13 @@ def process_frame(image: np.ndarray, settings: CvSettings) -> CvOutputs:
     roi_mask = np.zeros((height, width), dtype=np.uint8)
     roi_mask[height // 2:, :] = 255  # Lower half
 
-    # Use ROI to mask each channel
-    roi_h = h_channel[roi_mask == 255]
-    roi_s = s_channel[roi_mask == 255]
-    roi_v = v_channel[roi_mask == 255]
-
-    # Compute percentiles on ROI only
-    minH = np.percentile(roi_h, settings.hLowerPercentile)
-    maxH = np.percentile(roi_h, settings.hUpperPercentile)
-    minS = np.percentile(roi_s, settings.sLowerPercentile)
-    maxS = np.percentile(roi_s, settings.sUpperPercentile)
-    minV = np.percentile(roi_v, settings.vLowerPercentile)
-    maxV = np.percentile(roi_v, settings.vUpperPercentile)
+    # Threholds for hue, saturation, and value channels
+    minH = settings.minHue
+    maxH = settings.maxHue
+    minS = settings.minSaturation
+    maxS = settings.maxSaturation
+    minV = settings.minValue
+    maxV = settings.maxValue
 
     # Create masks based on thresholds
     hue_mask = cv2.inRange(h_channel, minH, maxH)
@@ -329,7 +324,7 @@ def process_frame(image: np.ndarray, settings: CvSettings) -> CvOutputs:
     combined = np.vstack([first_row, second_row])
 
     # Encode the combined image to JPEG format
-    _, buffer = cv2.imencode('.jpg', combined, [cv2.IMWRITE_JPEG_QUALITY, 50])
+    _, buffer = cv2.imencode('.jpg', combined, [cv2.IMWRITE_JPEG_QUALITY, 90])
     jpg_as_text = base64.b64encode(buffer).decode('utf-8')
     jpg_as_text = f"data:image/jpeg;base64,{jpg_as_text}"
 
@@ -380,84 +375,4 @@ def search_for_best_settings(originalSettings: CvSettings, image: np.ndarray) ->
     Searches for the correct settings by iterating through a range of values.
     Returns the settings that yield the best results.
     """
-    best_avg_r2 = 0
-    best_channel: Optional[ChannelType] = None
-    best_range = (0, 0)
-
-    # Step in each parameter by incerements of 5% with a bandwith of 15%
-    # Find the best ranges for hue, saturation, and value independently
-
-    increment = 5
-    bandwidth = 15
-    for hLowerPercentile in range(0, 100, increment):
-        for hUpperPercentile in range(hLowerPercentile + bandwidth, 100, increment):
-            if hUpperPercentile > 100:
-                break
-            settings = originalSettings.copy()
-            settings.hLowerPercentile = hLowerPercentile
-            settings.hUpperPercentile = hUpperPercentile
-            outputs = process_frame(image, settings)
-            if outputs.outputLines.leftLine and outputs.outputLines.rightLine:
-                avg_r2 = (outputs.outputLines.leftLine.r2 + outputs.outputLines.rightLine.r2) / 2
-                if avg_r2 > best_avg_r2:
-                    best_avg_r2 = avg_r2
-                    best_channel = 'h'
-                    best_range = (hLowerPercentile, hUpperPercentile)
-
-    for sLowerPercentile in range(0, 100, increment):
-        for sUpperPercentile in range(sLowerPercentile + bandwidth, 100, increment):
-            if sUpperPercentile > 100:
-                break
-            settings = originalSettings.copy()
-            settings.sLowerPercentile = sLowerPercentile
-            settings.sUpperPercentile = sUpperPercentile
-            outputs = process_frame(image, settings)
-            if outputs.outputLines.leftLine and outputs.outputLines.rightLine:
-                avg_r2 = (outputs.outputLines.leftLine.r2 + outputs.outputLines.rightLine.r2) / 2
-                if avg_r2 > best_avg_r2:
-                    best_avg_r2 = avg_r2
-                    best_channel = 's'
-                    best_range = (sLowerPercentile, sUpperPercentile)
-
-    for vLowerPercentile in range(0, 100, increment):
-        for vUpperPercentile in range(vLowerPercentile + bandwidth, 100, increment):
-            if vUpperPercentile > 100:
-                break
-            settings = originalSettings.copy()
-            settings.vLowerPercentile = vLowerPercentile
-            settings.vUpperPercentile = vUpperPercentile
-            outputs = process_frame(image, settings)
-            if outputs.outputLines.leftLine and outputs.outputLines.rightLine:
-                avg_r2 = (outputs.outputLines.leftLine.r2 + outputs.outputLines.rightLine.r2) / 2
-                if avg_r2 > best_avg_r2:
-                    best_avg_r2 = avg_r2
-                    best_channel = 'v'
-                    best_range = (vLowerPercentile, vUpperPercentile)
-
-    best_settings = originalSettings.copy()
-    if best_channel == 'h':
-        best_settings.hLowerPercentile = best_range[0]
-        best_settings.hUpperPercentile = best_range[1]
-        best_settings.sLowerPercentile = 0
-        best_settings.sUpperPercentile = 100
-        best_settings.vLowerPercentile = 0
-        best_settings.vUpperPercentile = 100
-    elif best_channel == 's':
-        best_settings.sLowerPercentile = best_range[0]
-        best_settings.sUpperPercentile = best_range[1]
-        best_settings.hLowerPercentile = 0
-        best_settings.hUpperPercentile = 100
-        best_settings.vLowerPercentile = 0
-        best_settings.vUpperPercentile = 100
-    elif best_channel == 'v':
-        best_settings.vLowerPercentile = best_range[0]
-        best_settings.vUpperPercentile = best_range[1]
-        best_settings.hLowerPercentile = 0
-        best_settings.hUpperPercentile = 100
-        best_settings.sLowerPercentile = 0
-        best_settings.sUpperPercentile = 100
-    else:
-        # No valid channel found, return original settings
-        return None
-
-    return best_settings
+    return None  # Placeholder for the actual implementation

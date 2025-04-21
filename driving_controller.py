@@ -169,9 +169,9 @@ class DrivingController:
                 drivingState = self.drivingState
 
             # Get the current frames from the webcams
-            maybeSwapped = settings.swapCameras
-            frontFrame = webcams.get_front_frame(maybeSwapped)
-            rearFrame = webcams.get_rear_frame(maybeSwapped)
+            maybeReversed = drivingState.drivingDirection == DrivingDirection.BACKWARD
+            frontFrame = webcams.get_front_frame(reversed=maybeReversed)
+            rearFrame = webcams.get_rear_frame(reversed=maybeReversed)
 
             # Determine which camera to process based on the current stage and driving direction
             cameraToProcess = drivingState.drivingDirection

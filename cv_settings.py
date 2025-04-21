@@ -4,12 +4,12 @@ from pydantic import BaseModel
 
 
 class CvSettings(BaseModel):
-    hLowerPercentile: int
-    hUpperPercentile: int
-    sLowerPercentile: int
-    sUpperPercentile: int
-    vLowerPercentile: int
-    vUpperPercentile: int
+    minHue: int
+    maxHue: int
+    minSaturation: int
+    maxSaturation: int
+    minValue: int
+    maxValue: int
     closeKernel: int
     openKernel: int
     distThreshold: int

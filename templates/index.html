@@ -5,43 +5,52 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>WebCam Streaming</title>
+  <link rel="stylesheet" href="static/styles.css" />
 </head>
 
 <body>
-  <h2>WebCam Streaming from Raspberry Pi</h2>
+  <h2><img id="logo" src="static/logo.png" alt="Logo" /> Row-Rider</h2>
 
-  <div id="container" style="display: flex; flex-direction: row;">
-    <div id="controls" style="margin-right: 20px;"></div>
-    <div>
-      <h3 style="margin-right: 20px;">
-        Temperature: <span id="temperature">Loading...</span> °C
-      </h3>
-      <div>
-        <h4>Direction: </h4>
+  <div id="main">
+    <!-- Left side controls -->
+    <div id="leftPanel">
+      <div id="controls"></div>
+
+      <div class="card">
+        <h3>Temperature: <span id="temperature">Loading...</span> °C</h3>
+        <h4>Direction:</h4>
         <button id="drivingDirection">Loading...</button>
-      </div>
-      <div>
-        <h4>Use Hoe: </h4>
+
+        <h4>Use Hoe:</h4>
         <button id="useHoe">Loading...</button>
-      </div>
-      <div>
-        <h4>Stage: </h4>
+
+        <h4>Stage:</h4>
         <div id="currentStage">Loading...</div>
       </div>
-    </div>
-    <div style="margin-right: 20px;">
-      <h4>RC Control Mode</h4>
-      <div id="rcControlMode">Loading...</div>
-      <h4>Latest Drive Command</h4>
-      <div id="latestDriveCommand"></div>
-      <h4>Latest Gantry Command</h4>
-      <div id="latestGantryCommand"></div>
-    </div>
-    <div id="logHistory" style="height: 300px; overflow: scroll;"></div>
-  </div>
 
-  <img width="1440" height="320" id="frontCamera" />
-  <img width="1440" height="320" id="rearCamera" />
+      <div class="card">
+        <h4>RC Control Mode</h4>
+        <div id="rcControlMode">Loading...</div>
+
+        <h4>Latest Drive Command</h4>
+        <div id="latestDriveCommand"></div>
+
+        <h4>Latest Gantry Command</h4>
+        <div id="latestGantryCommand"></div>
+      </div>
+
+      <div class="card">
+        <h4>Log History</h4>
+        <div id="logHistory"></div>
+      </div>
+    </div>
+
+    <!-- Right side camera feeds -->
+    <div id="rightPanel">
+      <img id="frontCamera" />
+      <img id="rearCamera" />
+    </div>
+  </div>
 
   <script type="text/javascript" src="static/index.js"></script>
 </body>

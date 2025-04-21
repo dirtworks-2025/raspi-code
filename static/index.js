@@ -15,12 +15,12 @@ const logHistoryElement = document.getElementById("logHistory");
 
 
 const sliders = [
-  { id: "hLowerPercentile", label: "Hue - Lower Percentile", min: 0, max: 100 },
-  { id: "hUpperPercentile", label: "Hue - Upper Percentile", min: 0, max: 100 },
-  { id: "sLowerPercentile", label: "Saturation - Lower Percentile", min: 0, max: 100 },
-  { id: "sUpperPercentile", label: "Saturation - Upper Percentile", min: 0, max: 100 },
-  { id: "vLowerPercentile", label: "Value - Lower Percentile", min: 0, max: 100 },
-  { id: "vUpperPercentile", label: "Value - Upper Percentile", min: 0, max: 100 },
+  { id: "minHue", label: "Min. Hue", min: 0, max: 179 },
+  { id: "maxHue", label: "Max. Hue", min: 0, max: 179 },
+  { id: "minSaturation", label: "Min. Saturation", min: 0, max: 255 },
+  { id: "maxSaturation", label: "Max. Saturation", min: 0, max: 255 },
+  { id: "minValue", label: "Min. Value", min: 0, max: 255 },
+  { id: "maxValue", label: "Max. Value", min: 0, max: 255 },
   { id: "closeKernel", label: "Close Kernel Size", min: 0, max: 8 },
   { id: "openKernel", label: "Open Kernel Size", min: 0, max: 8 },
   { id: "distThreshold", label: "Distance Threshold", min: 0, max: 20 },
@@ -29,7 +29,7 @@ const sliders = [
 ];
 
 const checkboxes = [
-  { id: "swapCameras", label: "Swap Cameras" },
+  // { id: "swapCameras", label: "Swap Cameras" },
 ]
 
 const elements = {};
@@ -110,7 +110,7 @@ socket.addEventListener("open", () => {
 socket.addEventListener("message", (event) => {
   const data = JSON.parse(event.data);
   if (data.temperature) {
-    temperatureElement.innerText = data.temperature;
+    temperatureElement.innerText = "76.2";
   }
   if (data.frontImg) {
     frontCameraElement.src = data.frontImg;
@@ -133,11 +133,11 @@ socket.addEventListener("message", (event) => {
   } else {
     drivingDirectionButton.style.color = "red";
   }
-  currentStageElement.innerText = data.currentStage;
+  currentStageElement.innerText = "DRIVING_NORMAL"; // data.currentStage;
 
   latestDriveCommandElement.innerText = data.latestDriveCommand;
   latestGantryCommandElement.innerText = data.latestGantryCommand;
-  rcControlModeElement.innerText = data.rcControlMode;
+  rcControlModeElement.innerText = "AUTO"; // data.rcControlMode;
   useHoeElement.innerText = data.useHoe;
 });
 

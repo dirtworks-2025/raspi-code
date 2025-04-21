@@ -1,0 +1,236 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Inter:wght@400;600&display=swap');
+
+/* General page style */
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', sans-serif;
+  background: #f4f1ea;
+  color: #333;
+}
+
+h2 {
+  font-family: 'Press Start 2P', cursive;
+  font-size: 1.2rem;
+  color: #5a7d4d;
+  text-align: center;
+  padding: 1.0rem 0;
+  margin: 0;
+  background: linear-gradient(90deg, #d8d2c1, #f4f1ea);
+  border-bottom: 2px solid #5a7d4d;
+}
+
+h2 img {
+  height: 40px;
+  margin-right: 10px;
+  vertical-align: middle;
+}
+
+#main {
+  display: flex;
+  flex-direction: row;
+  height: calc(100vh - 80px); /* Already correctly set */
+  padding: 20px;
+  gap: 20px;
+  overflow: hidden; /* Prevent main container overflow */
+}
+
+#leftPanel {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  gap: 20px;
+  max-width: 400px;
+  overflow-y: auto;
+  padding-right: 10px;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  mask-image: linear-gradient(to bottom, 
+    transparent 0%, 
+    black 2%, 
+    black 98%, 
+    transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, 
+    transparent 0%, 
+    black 2%, 
+    black 98%, 
+    transparent 100%);
+}
+
+
+
+/* Each card (info box) */
+.card, #controls {
+  background: #ffffff;
+  border: 1px solid #d8d2c1;
+  border-radius: 12px;
+  padding: 16px;
+  box-shadow: 0 2px 8px rgba(90, 125, 77, 0.2);
+}
+
+h3, h4 {
+  margin: 0 0 10px 0;
+  color: #5a7d4d;
+}
+
+/* Info display blocks */
+#temperature,
+#currentStage,
+#rcControlMode,
+#latestDriveCommand,
+#latestGantryCommand {
+  font-family: 'Press Start 2P', cursive;
+  font-size: 0.75rem;
+  background: #edf4ea;
+  color: #5a7d4d;
+  padding: 8px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  word-break: break-word;
+  border: 1px solid #cbd5c0;
+}
+
+/* Buttons */
+button {
+  font-family: 'Press Start 2P', cursive;
+  font-size: 0.65rem;
+  background: #a5d6a7;
+  color: #2e4631;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 16px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  box-shadow: 0 0 8px rgba(90, 125, 77, 0.2);
+  transition: all 0.2s ease;
+  width: 100%;
+  text-transform: uppercase;
+}
+
+button:hover {
+  background: #8bc68c;
+  box-shadow: 0 0 12px rgba(90, 125, 77, 0.4);
+}
+
+/* Log history scroll */
+#logHistory {
+  height: 200px;
+  overflow-y: auto;
+  background: #f0f4f0;
+  padding: 12px;
+  font-size: 0.75rem;
+  font-family: monospace;
+  border-radius: 10px;
+  border: 1px solid #d8d2c1;
+  box-shadow: inset 0 0 4px rgba(90, 125, 77, 0.1);
+}
+
+/* Right panel (camera feeds) */
+#rightPanel {
+  flex: 2;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+#rightPanel img {
+  width: 100%;
+  max-height: 42.5vh; /* limit the height relative to screen */
+  object-fit: cover;
+  background: #000;
+  border-radius: 12px;
+  border: 1px solid #d8d2c1;
+  box-shadow: 0 2px 8px rgba(90, 125, 77, 0.2);
+}
+
+/* Responsive */
+@media screen and (max-width: 900px) {
+  #main {
+    flex-direction: column;
+  }
+
+  #leftPanel, #rightPanel {
+    width: 100%;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* Style for all sliders */
+input[type="range"] {
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  background: #cbd5c0; /* Light muted green background */
+  border-radius: 5px;
+  outline: none;
+  margin: 8px 0;
+}
+
+/* Chrome / Safari thumb */
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #2e4631; /* Dark green thumb */
+  border: 2px solid #5a7d4d;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 2px #2e4631;
+  transition: background 0.3s ease;
+}
+
+/* Chrome / Safari thumb hover effect */
+input[type="range"]::-webkit-slider-thumb:hover {
+  background: #3e6040; /* Slightly lighter on hover */
+}
+
+/* Firefox track */
+input[type="range"]::-moz-range-track {
+  background: #cbd5c0;
+  height: 6px;
+  border-radius: 5px;
+}
+
+/* Firefox thumb */
+input[type="range"]::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  background: #2e4631;
+  border: 2px solid #5a7d4d;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 2px #2e4631;
+}
+
+/* Scrollbar styling for Webkit browsers (Chrome, Safari, Edge) */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #e8e5db; /* Light background track */
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #5a7d4d; /* Dark muted green thumb */
+  border-radius: 10px;
+  border: 2px solid #e8e5db; /* Little space around thumb */
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #3e6040; /* Slightly darker green on hover */
+}
+
+/* Firefox scrollbar styling */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #5a7d4d #e8e5db; /* thumb color track color */
+}
+
