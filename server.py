@@ -65,6 +65,8 @@ def get_temperature():
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
     print("WebSocket connection established.")
+    with currentSettingsStateLock:
+        currentSettingsState.load()
     while True:
         try:
             # Wait for the driving controller to finish processing

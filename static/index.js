@@ -39,8 +39,8 @@ sliders.forEach(({ id, label, min, max }) => {
   const wrapper = document.createElement("div");
 
   wrapper.innerHTML = `
-    <input type="range" id="${id}" min="${min}" max="${max}" value="0" data-key="${id}" />
     <label for="${id}">${label}: <span id="${id}Value">0</span></label>
+    <input type="range" id="${id}" min="${min}" max="${max}" value="0" data-key="${id}" />
   `;
 
   controlsContainer.appendChild(wrapper);

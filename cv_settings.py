@@ -15,7 +15,7 @@ class CvSettings(BaseModel):
     distThreshold: int
     verticalDilationIterations: int
     r2Threshold: int
-    swapCameras: bool
+    # swapCameras: bool
 
 class CvSettingsState:
     settings: CvSettings
@@ -23,7 +23,7 @@ class CvSettingsState:
 
     def update(self, newSettings: CvSettings):
         self.settings = newSettings
-        self.save()
+        # self.save()
     
     def save(self):
         with open(self.path, "w") as f:

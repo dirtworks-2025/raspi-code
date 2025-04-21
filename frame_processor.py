@@ -273,7 +273,7 @@ def process_frame(image: np.ndarray, settings: CvSettings) -> CvOutputs:
         line = get_best_fit_line(pixels)
         if abs(line.angle() + 90) > 45:  # Filter out lines too far from vertical
             continue
-        if line.length() < 70:  # Filter out lines that are too short
+        if line.length() < 50:  # Filter out lines that are too short
             continue
         if line.r2 < (settings.r2Threshold / 100):  # Filter out lines with low R^2 value
             continue
@@ -306,6 +306,11 @@ def process_frame(image: np.ndarray, settings: CvSettings) -> CvOutputs:
     )
     cv2.line(mask_with_lines, centerLine.start.to_tuple(), centerLine.end.to_tuple(), (128, 128, 128), 2)
     cv2.line(image_with_lines, centerLine.start.to_tuple(), centerLine.end.to_tuple(), (255, 255, 255), 2)
+
+    # Draw arrow representing steering correction
+    if left_line_index >= 0 and right_line_index < len(lines):
+        average_line = Line.avg_line(lines[right_line_index], lines[left_line_index]).scaled(0.5)
+        cv2.arrowedLine(image_with_lines, (width // 2, height), (average_line.end.x, height // 2), (255, 0, 255), 2)
 
     # Create a 4x3 grid of images
     placeholder = np.zeros((height, width, 3), dtype=np.uint8)
